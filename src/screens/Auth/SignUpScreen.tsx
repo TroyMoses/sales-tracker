@@ -9,18 +9,23 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useAuth } from "../../context/AuthContext";
+import { useNavigation } from "@react-navigation/native";
+import { StackNavigationProp } from "@react-navigation/stack";
+import { RootStackParamList } from "../../../App";
 
-interface SignUpScreenProps {
-  onToggleMode: () => void;
-}
+type SignUpScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  "SignUp"
+>;
 
-const SignUpScreen: React.FC<SignUpScreenProps> = ({ onToggleMode }) => {
+const SignUpScreen: React.FC = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const { register } = useAuth();
+  const navigation = useNavigation<SignUpScreenNavigationProp>();
 
   const handleSignUp = async () => {
     if (!username || !password || !name) {
@@ -40,6 +45,7 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ onToggleMode }) => {
         Alert.alert("Error", "Registration failed - username may be taken");
       }
     } catch (error) {
+      console.error("Registration error:", error);
       Alert.alert("Error", "Registration failed");
     } finally {
       setIsLoading(false);
@@ -85,7 +91,7 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ onToggleMode }) => {
         )}
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={onToggleMode}>
+      <TouchableOpacity onPress={() => navigation.navigate("SignIn")}>
         <Text style={styles.toggleText}>Already have an account? Sign In</Text>
       </TouchableOpacity>
     </View>

@@ -41,7 +41,7 @@ interface FollowUp {
   id: number;
   date: string;
   notes: string;
-  isCompleted: boolean | number;
+  isCompleted: string; // Changed from boolean | number to 0 | 1
 }
 
 interface AuthContextValue {
@@ -99,6 +99,10 @@ const DashboardScreen: React.FC = () => {
     ]);
   };
 
+  const incompleteFollowUps = followUps.filter(
+    (fu: FollowUp) => fu.isCompleted === "No"
+  );
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -154,20 +158,17 @@ const DashboardScreen: React.FC = () => {
         {/* Upcoming Follow-ups */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Upcoming Follow-ups</Text>
-          {followUps
-            .filter((fu: FollowUp) => !fu.isCompleted)
-            .slice(0, 5)
-            .map((followUp: FollowUp) => (
-              <View key={followUp.id} style={styles.listItem}>
-                <Text style={styles.itemName}>
-                  Follow-up: {new Date(followUp.date).toLocaleDateString()}
-                </Text>
-                <Text style={styles.itemNotes} numberOfLines={2}>
-                  {followUp.notes}
-                </Text>
-              </View>
-            ))}
-          {followUps.filter((fu: FollowUp) => !fu.isCompleted).length === 0 && (
+          {incompleteFollowUps.slice(0, 5).map((followUp: FollowUp) => (
+            <View key={followUp.id} style={styles.listItem}>
+              <Text style={styles.itemName}>
+                Follow-up: {new Date(followUp.date).toLocaleDateString()}
+              </Text>
+              <Text style={styles.itemNotes} numberOfLines={2}>
+                {followUp.notes}
+              </Text>
+            </View>
+          ))}
+          {incompleteFollowUps.length === 0 && (
             <Text style={styles.emptyText}>No upcoming follow-ups</Text>
           )}
         </View>

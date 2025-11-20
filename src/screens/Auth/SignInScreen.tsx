@@ -9,17 +9,22 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useAuth } from "../../context/AuthContext";
+import { useNavigation } from "@react-navigation/native";
+import { StackNavigationProp } from "@react-navigation/stack";
+import { RootStackParamList } from "../../../App";
 
-interface SignInScreenProps {
-  onToggleMode: () => void;
-}
+type SignInScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  "SignIn"
+>;
 
-const SignInScreen: React.FC<SignInScreenProps> = ({ onToggleMode }) => {
+const SignInScreen: React.FC = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const { login } = useAuth();
+  const navigation = useNavigation<SignInScreenNavigationProp>();
 
   const handleSignIn = async () => {
     if (!username || !password) {
@@ -34,6 +39,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ onToggleMode }) => {
         Alert.alert("Error", "Invalid credentials");
       }
     } catch (error) {
+      console.error("Login error:", error);
       Alert.alert("Error", "Login failed");
     } finally {
       setIsLoading(false);
@@ -73,7 +79,7 @@ const SignInScreen: React.FC<SignInScreenProps> = ({ onToggleMode }) => {
         )}
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={onToggleMode}>
+      <TouchableOpacity onPress={() => navigation.navigate("SignUp")}>
         <Text style={styles.toggleText}>Don't have an account? Sign Up</Text>
       </TouchableOpacity>
     </View>

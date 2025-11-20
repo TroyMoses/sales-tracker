@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
@@ -8,29 +8,12 @@ import SignUpScreen from "./src/screens/Auth/SignUpScreen";
 import DashboardScreen from "./src/screens/DashboardScreen";
 
 export type RootStackParamList = {
-  Auth: undefined;
+  SignIn: undefined;
+  SignUp: undefined;
   Dashboard: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-
-const AuthStack: React.FC = () => {
-  const [isSignIn, setIsSignIn] = useState(true);
-
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Auth">
-        {() =>
-          isSignIn ? (
-            <SignInScreen onToggleMode={() => setIsSignIn(false)} />
-          ) : (
-            <SignUpScreen onToggleMode={() => setIsSignIn(true)} />
-          )
-        }
-      </Stack.Screen>
-    </Stack.Navigator>
-  );
-};
 
 const AppContent: React.FC = () => {
   const { currentUser, isLoading } = useAuth();
@@ -41,11 +24,17 @@ const AppContent: React.FC = () => {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {currentUser ? (
-          <Stack.Screen name="Dashboard" component={DashboardScreen} />
+      <Stack.Navigator
+        screenOptions={{ headerShown: false }}
+        initialRouteName={currentUser ? "Dashboard" : "SignIn"}
+      >
+        {!currentUser ? (
+          <>
+            <Stack.Screen name="SignIn" component={SignInScreen} />
+            <Stack.Screen name="SignUp" component={SignUpScreen} />
+          </>
         ) : (
-          <Stack.Screen name="Auth" component={AuthStack} />
+          <Stack.Screen name="Dashboard" component={DashboardScreen} />
         )}
       </Stack.Navigator>
     </NavigationContainer>
