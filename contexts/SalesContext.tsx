@@ -6,7 +6,15 @@ import React, {
   useCallback,
   ReactNode,
 } from "react";
-import { Client, Prospect, Sale, FollowUp } from "../types";
+import {
+  Client,
+  Prospect,
+  Sale,
+  FollowUp,
+  PhoneNumber,
+  CallLog,
+  DailyCallStats,
+} from "../types";
 import { useAuth } from "./AuthContext";
 import * as db from "../services/database";
 
@@ -15,6 +23,8 @@ interface SalesContextType {
   prospects: Prospect[];
   sales: (Sale & { clientName: string })[];
   followUps: FollowUp[];
+  phoneNumbers: PhoneNumber[];
+  callLogs: (CallLog & { number: string })[];
   isLoading: boolean;
   addClient: (client: Omit<Client, "id" | "userId">) => Promise<void>;
   addProspect: (prospect: Omit<Prospect, "id" | "userId">) => Promise<void>;
@@ -29,6 +39,16 @@ interface SalesContextType {
   ) => Promise<void>;
   addFollowUp: (followUp: Omit<FollowUp, "id">) => Promise<void>;
   completeFollowUp: (followUpId: number) => Promise<void>;
+  recordCall: (callData: {
+    number: string;
+    logData: Omit<CallLog, "id" | "phoneNumberId">;
+  }) => Promise<void>;
+  convertPhoneToProspect: (
+    phoneNumberId: number,
+    prospectData: Omit<Prospect, "id" | "userId" | "phone">
+  ) => Promise<void>;
+  getDailyCallStats: (date: string) => Promise<DailyCallStats>;
+  getPhoneNumberHistory: (phoneNumberId: number) => Promise<CallLog[]>;
   refreshData: () => Promise<void>;
 }
 
@@ -48,6 +68,10 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [sales, setSales] = useState<(Sale & { clientName: string })[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+  const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumber[]>([]);
+  const [callLogs, setCallLogs] = useState<(CallLog & { number: string })[]>(
+    []
+  );
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const loadData = useCallback(async () => {
@@ -55,18 +79,28 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
 
     setIsLoading(true);
     try {
-      const [clientsData, prospectsData, salesData, followUpsData] =
-        await Promise.all([
-          db.getClients(user.id),
-          db.getProspects(user.id),
-          db.getSales(user.id),
-          db.getFollowUps(user.id),
-        ]);
+      const [
+        clientsData,
+        prospectsData,
+        salesData,
+        followUpsData,
+        phoneNumbersData,
+        callLogsData,
+      ] = await Promise.all([
+        db.getClients(user.id),
+        db.getProspects(user.id),
+        db.getSales(user.id),
+        db.getFollowUps(user.id),
+        db.getPhoneNumbers(user.id),
+        db.getCallLogs(user.id),
+      ]);
 
       setClients(clientsData);
       setProspects(prospectsData);
       setSales(salesData);
       setFollowUps(followUpsData);
+      setPhoneNumbers(phoneNumbersData);
+      setCallLogs(callLogsData);
 
       console.log("Data loaded successfully");
     } catch (error) {
@@ -84,6 +118,8 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
       setProspects([]);
       setSales([]);
       setFollowUps([]);
+      setPhoneNumbers([]);
+      setCallLogs([]);
     }
   }, [user, loadData]);
 
@@ -185,6 +221,61 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const recordCall = async (callData: {
+    number: string;
+    logData: Omit<CallLog, "id" | "phoneNumberId">;
+  }) => {
+    if (!user) throw new Error("User not authenticated");
+
+    try {
+      const result = await db.recordNewCall(user.id, callData);
+      await refreshData();
+      console.log("Call recorded:", result);
+    } catch (error) {
+      console.error("Error recording call:", error);
+      throw error;
+    }
+  };
+
+  const convertPhoneToProspect = async (
+    phoneNumberId: number,
+    prospectData: Omit<Prospect, "id" | "userId" | "phone">
+  ) => {
+    try {
+      const newProspect = await db.convertPhoneNumberToProspect(
+        phoneNumberId,
+        prospectData
+      );
+      await refreshData();
+      console.log("Phone converted to prospect:", newProspect);
+    } catch (error) {
+      console.error("Error converting phone to prospect:", error);
+      throw error;
+    }
+  };
+
+  const getDailyCallStats = async (date: string): Promise<DailyCallStats> => {
+    if (!user) throw new Error("User not authenticated");
+
+    try {
+      return await db.getDailyCallStats(user.id, date);
+    } catch (error) {
+      console.error("Error fetching daily call stats:", error);
+      throw error;
+    }
+  };
+
+  const getPhoneNumberHistory = async (
+    phoneNumberId: number
+  ): Promise<CallLog[]> => {
+    try {
+      return await db.getCallLogsByPhoneNumber(phoneNumberId);
+    } catch (error) {
+      console.error("Error fetching phone number history:", error);
+      throw error;
+    }
+  };
+
   return (
     <SalesContext.Provider
       value={{
@@ -192,6 +283,8 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
         prospects,
         sales,
         followUps,
+        phoneNumbers,
+        callLogs,
         isLoading,
         addClient,
         addProspect,
@@ -200,6 +293,10 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
         convertProspectToClient,
         addFollowUp,
         completeFollowUp,
+        recordCall,
+        convertPhoneToProspect,
+        getDailyCallStats,
+        getPhoneNumberHistory,
         refreshData,
       }}
     >

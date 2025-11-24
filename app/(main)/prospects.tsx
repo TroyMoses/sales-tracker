@@ -14,11 +14,16 @@ import {
 } from "react-native";
 import { useSales } from "../../contexts/SalesContext";
 import { Prospect } from "../../types";
-import { Target, Plus, X, Mail, Phone } from "lucide-react-native";
+import { Target, Plus, X, Mail, Phone, TrendingUp } from "lucide-react-native";
 
 export default function ProspectsScreen() {
-  const { prospects, addProspect } = useSales();
+  const { prospects, addProspect, convertProspectToClient } = useSales();
   const [modalVisible, setModalVisible] = useState<boolean>(false);
+  const [convertModalVisible, setConvertModalVisible] =
+    useState<boolean>(false);
+  const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(
+    null
+  );
   const [formData, setFormData] = useState<Omit<Prospect, "id" | "userId">>({
     name: "",
     phone: "",
@@ -26,6 +31,13 @@ export default function ProspectsScreen() {
     company: "",
     status: "New",
     followUpDate: new Date().toISOString().split("T")[0],
+  });
+  const [saleFormData, setSaleFormData] = useState<{
+    amount: string;
+    productOrService: string;
+  }>({
+    amount: "",
+    productOrService: "",
   });
 
   const handleAddProspect = async () => {
@@ -49,6 +61,43 @@ export default function ProspectsScreen() {
     } catch {
       Alert.alert("Error", "Failed to add prospect");
     }
+  };
+
+  const handleConvertToClient = async () => {
+    if (!selectedProspect) return;
+
+    if (!saleFormData.amount.trim() || !saleFormData.productOrService.trim()) {
+      Alert.alert("Error", "Please fill in all sale details");
+      return;
+    }
+
+    const amount = parseFloat(saleFormData.amount);
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert("Error", "Please enter a valid amount");
+      return;
+    }
+
+    try {
+      await convertProspectToClient(selectedProspect.id, {
+        amount,
+        productOrService: saleFormData.productOrService,
+        date: new Date().toISOString(),
+      });
+      setConvertModalVisible(false);
+      setSelectedProspect(null);
+      setSaleFormData({
+        amount: "",
+        productOrService: "",
+      });
+      Alert.alert("Success", "Prospect converted to client with sale!");
+    } catch {
+      Alert.alert("Error", "Failed to convert prospect");
+    }
+  };
+
+  const openConvertModal = (prospect: Prospect) => {
+    setSelectedProspect(prospect);
+    setConvertModalVisible(true);
   };
 
   const getStatusColor = (status: Prospect["status"]) => {
@@ -114,6 +163,15 @@ export default function ProspectsScreen() {
           </View>
         ) : null}
       </View>
+      {item.status !== "Won" && (
+        <TouchableOpacity
+          style={styles.convertButton}
+          onPress={() => openConvertModal(item)}
+        >
+          <TrendingUp size={16} color="#fff" strokeWidth={2} />
+          <Text style={styles.convertButtonText}>Convert to Client</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -221,6 +279,79 @@ export default function ProspectsScreen() {
                 onPress={handleAddProspect}
               >
                 <Text style={styles.submitButtonText}>Add Prospect</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={convertModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setConvertModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalContainer}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                Convert to Client & Record Sale
+              </Text>
+              <TouchableOpacity onPress={() => setConvertModalVisible(false)}>
+                <X size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalForm}>
+              {selectedProspect && (
+                <View style={styles.prospectPreview}>
+                  <Text style={styles.prospectPreviewLabel}>Converting:</Text>
+                  <Text style={styles.prospectPreviewName}>
+                    {selectedProspect.name}
+                  </Text>
+                  <Text style={styles.prospectPreviewCompany}>
+                    {selectedProspect.company}
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Sale Amount (UGX) *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={saleFormData.amount}
+                  onChangeText={(text) =>
+                    setSaleFormData({ ...saleFormData, amount: text })
+                  }
+                  placeholder="0.00"
+                  placeholderTextColor="#64748b"
+                  keyboardType="decimal-pad"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Product/Service *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={saleFormData.productOrService}
+                  onChangeText={(text) =>
+                    setSaleFormData({ ...saleFormData, productOrService: text })
+                  }
+                  placeholder="What was sold?"
+                  placeholderTextColor="#64748b"
+                />
+              </View>
+
+              <TouchableOpacity
+                style={styles.submitButton}
+                onPress={handleConvertToClient}
+              >
+                <Text style={styles.submitButtonText}>
+                  Convert & Record Sale
+                </Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -382,5 +513,42 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600" as const,
+  },
+  convertButton: {
+    marginTop: 12,
+    backgroundColor: "#10b981",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  convertButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600" as const,
+  },
+  prospectPreview: {
+    backgroundColor: "#0f172a",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  prospectPreviewLabel: {
+    fontSize: 12,
+    color: "#94a3b8",
+    marginBottom: 8,
+  },
+  prospectPreviewName: {
+    fontSize: 20,
+    fontWeight: "700" as const,
+    color: "#fff",
+    marginBottom: 4,
+  },
+  prospectPreviewCompany: {
+    fontSize: 14,
+    color: "#94a3b8",
   },
 });

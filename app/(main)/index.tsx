@@ -14,6 +14,7 @@ import {
   Target,
   DollarSign,
   Calendar,
+  Phone,
 } from "lucide-react-native";
 import { router } from "expo-router";
 
@@ -80,7 +81,7 @@ export default function DashboardScreen() {
         <MetricCard
           icon={DollarSign}
           label="Total Revenue"
-          value={`$${metrics.totalRevenue.toLocaleString()}`}
+          value={`UGX ${metrics.totalRevenue.toLocaleString()}`}
           color="#10b981"
           onPress={() => router.push("/(main)/sales")}
         />
@@ -139,7 +140,7 @@ export default function DashboardScreen() {
                   </Text>
                 </View>
                 <Text style={styles.saleAmount}>
-                  ${sale.amount.toLocaleString()}
+                  UGX {sale.amount.toLocaleString()}
                 </Text>
               </View>
             ))}
@@ -152,10 +153,10 @@ export default function DashboardScreen() {
         <View style={styles.actionsGrid}>
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => router.push("/(main)/clients")}
+            onPress={() => router.push("/(main)/calls")}
           >
-            <Users size={24} color="#3b82f6" strokeWidth={2} />
-            <Text style={styles.actionText}>Add Client</Text>
+            <Phone size={24} color="#3b82f6" strokeWidth={2} />
+            <Text style={styles.actionText}>Log Call</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionButton}

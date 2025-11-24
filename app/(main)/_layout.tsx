@@ -60,6 +60,12 @@ export default function MainLayout() {
           title: "Sales",
         }}
       />
+      <Stack.Screen
+        name="calls"
+        options={{
+          title: "Calls",
+        }}
+      />
     </Stack>
   );
 }

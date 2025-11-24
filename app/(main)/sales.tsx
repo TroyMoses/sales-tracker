@@ -80,7 +80,9 @@ export default function SalesScreen() {
             {new Date(item.date).toLocaleDateString()}
           </Text>
         </View>
-        <Text style={styles.saleAmount}>${item.amount.toLocaleString()}</Text>
+        <Text style={styles.saleAmount}>
+          UGX {item.amount.toLocaleString()}
+        </Text>
       </View>
     </View>
   );

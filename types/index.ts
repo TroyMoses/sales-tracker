@@ -42,3 +42,31 @@ export interface FollowUp {
   notes: string;
   isCompleted: 0 | 1;
 }
+
+export interface PhoneNumber {
+  id: number;
+  userId: number;
+  number: string;
+  lastCalledDate: string;
+  isProspect: 0 | 1;
+  prospectId: number | null;
+}
+
+export interface CallLog {
+  id: number;
+  phoneNumberId: number;
+  date: string;
+  feedback: "Successful" | "Busy" | "Not Answered" | "DNC" | "Connected-Lead";
+  duration: number;
+  shortNotes: string;
+  nextFollowUpDate: string | null;
+}
+
+export interface DailyCallStats {
+  totalCalls: number;
+  successful: number;
+  busy: number;
+  notAnswered: number;
+  dnc: number;
+  leads: number;
+}

@@ -1,6 +1,15 @@
 import { Platform } from "react-native";
 import CryptoJS from "crypto-js";
-import { User, Client, Prospect, Sale, FollowUp } from "../types";
+import {
+  User,
+  Client,
+  Prospect,
+  Sale,
+  FollowUp,
+  PhoneNumber,
+  CallLog,
+  DailyCallStats,
+} from "../types";
 
 let SQLite: any = null;
 let db: any = null;
@@ -72,6 +81,29 @@ export const initDatabase = async (): Promise<void> => {
         date TEXT NOT NULL,
         notes TEXT NOT NULL,
         isCompleted INTEGER NOT NULL DEFAULT 0
+      );
+      
+      CREATE TABLE IF NOT EXISTS PhoneNumbers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId INTEGER NOT NULL,
+        number TEXT NOT NULL,
+        lastCalledDate TEXT NOT NULL,
+        isProspect INTEGER NOT NULL DEFAULT 0,
+        prospectId INTEGER,
+        UNIQUE(userId, number),
+        FOREIGN KEY (userId) REFERENCES Users(id),
+        FOREIGN KEY (prospectId) REFERENCES Prospects(id)
+      );
+      
+      CREATE TABLE IF NOT EXISTS CallLogs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        phoneNumberId INTEGER NOT NULL,
+        date TEXT NOT NULL,
+        feedback TEXT NOT NULL,
+        duration INTEGER NOT NULL DEFAULT 0,
+        shortNotes TEXT NOT NULL,
+        nextFollowUpDate TEXT,
+        FOREIGN KEY (phoneNumberId) REFERENCES PhoneNumbers(id)
       );
     `);
 
@@ -444,6 +476,241 @@ export const completeFollowUp = async (followUpId: number): Promise<void> => {
     ]);
   } catch (error) {
     console.error("Error completing follow-up:", error);
+    throw error;
+  }
+};
+
+export const recordNewCall = async (
+  userId: number,
+  callData: {
+    number: string;
+    logData: Omit<CallLog, "id" | "phoneNumberId">;
+  }
+): Promise<{ phoneNumber: PhoneNumber; callLog: CallLog }> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    let phoneNumber = (await db.getFirstAsync(
+      "SELECT * FROM PhoneNumbers WHERE userId = ? AND number = ?",
+      [userId, callData.number]
+    )) as PhoneNumber | null;
+
+    if (!phoneNumber) {
+      const result = await db.runAsync(
+        "INSERT INTO PhoneNumbers (userId, number, lastCalledDate, isProspect, prospectId) VALUES (?, ?, ?, 0, NULL)",
+        [userId, callData.number, callData.logData.date]
+      );
+
+      phoneNumber = {
+        id: result.lastInsertRowId,
+        userId,
+        number: callData.number,
+        lastCalledDate: callData.logData.date,
+        isProspect: 0,
+        prospectId: null,
+      };
+    } else {
+      await db.runAsync(
+        "UPDATE PhoneNumbers SET lastCalledDate = ? WHERE id = ?",
+        [callData.logData.date, phoneNumber.id]
+      );
+      phoneNumber.lastCalledDate = callData.logData.date;
+    }
+
+    const logResult = await db.runAsync(
+      "INSERT INTO CallLogs (phoneNumberId, date, feedback, duration, shortNotes, nextFollowUpDate) VALUES (?, ?, ?, ?, ?, ?)",
+      [
+        phoneNumber.id,
+        callData.logData.date,
+        callData.logData.feedback,
+        callData.logData.duration,
+        callData.logData.shortNotes,
+        callData.logData.nextFollowUpDate,
+      ]
+    );
+
+    const newCallLog: CallLog = {
+      id: logResult.lastInsertRowId,
+      phoneNumberId: phoneNumber.id,
+      ...callData.logData,
+    };
+
+    if (callData.logData.nextFollowUpDate) {
+      await db.runAsync(
+        "INSERT INTO FollowUps (entityId, isClient, date, notes, isCompleted) VALUES (?, 0, ?, ?, 0)",
+        [
+          phoneNumber.id,
+          callData.logData.nextFollowUpDate,
+          `Follow-up call for ${callData.number}`,
+        ]
+      );
+    }
+
+    console.log("Call recorded:", { phoneNumber, newCallLog });
+    return { phoneNumber, callLog: newCallLog };
+  } catch (error) {
+    console.error("Error recording call:", error);
+    throw error;
+  }
+};
+
+export const getPhoneNumbers = async (
+  userId: number
+): Promise<PhoneNumber[]> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    const phoneNumbers = (await db.getAllAsync(
+      "SELECT * FROM PhoneNumbers WHERE userId = ? ORDER BY lastCalledDate DESC",
+      [userId]
+    )) as PhoneNumber[];
+
+    return phoneNumbers;
+  } catch (error) {
+    console.error("Error fetching phone numbers:", error);
+    throw error;
+  }
+};
+
+export const getCallLogs = async (
+  userId: number
+): Promise<(CallLog & { number: string })[]> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    const callLogs = (await db.getAllAsync(
+      `SELECT CallLogs.*, PhoneNumbers.number 
+       FROM CallLogs 
+       INNER JOIN PhoneNumbers ON CallLogs.phoneNumberId = PhoneNumbers.id 
+       WHERE PhoneNumbers.userId = ? 
+       ORDER BY CallLogs.date DESC`,
+      [userId]
+    )) as (CallLog & { number: string })[];
+
+    return callLogs;
+  } catch (error) {
+    console.error("Error fetching call logs:", error);
+    throw error;
+  }
+};
+
+export const getCallLogsByPhoneNumber = async (
+  phoneNumberId: number
+): Promise<CallLog[]> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    const callLogs = (await db.getAllAsync(
+      "SELECT * FROM CallLogs WHERE phoneNumberId = ? ORDER BY date DESC",
+      [phoneNumberId]
+    )) as CallLog[];
+
+    return callLogs;
+  } catch (error) {
+    console.error("Error fetching call logs by phone number:", error);
+    throw error;
+  }
+};
+
+export const getDailyCallStats = async (
+  userId: number,
+  date: string
+): Promise<DailyCallStats> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    const startOfDay = date.split("T")[0];
+
+    const callLogs = (await db.getAllAsync(
+      `SELECT CallLogs.feedback 
+       FROM CallLogs 
+       INNER JOIN PhoneNumbers ON CallLogs.phoneNumberId = PhoneNumbers.id 
+       WHERE PhoneNumbers.userId = ? AND DATE(CallLogs.date) = DATE(?)
+       ORDER BY CallLogs.date DESC`,
+      [userId, startOfDay]
+    )) as { feedback: CallLog["feedback"] }[];
+
+    const stats: DailyCallStats = {
+      totalCalls: callLogs.length,
+      successful: 0,
+      busy: 0,
+      notAnswered: 0,
+      dnc: 0,
+      leads: 0,
+    };
+
+    callLogs.forEach((log) => {
+      switch (log.feedback) {
+        case "Successful":
+          stats.successful++;
+          break;
+        case "Busy":
+          stats.busy++;
+          break;
+        case "Not Answered":
+          stats.notAnswered++;
+          break;
+        case "DNC":
+          stats.dnc++;
+          break;
+        case "Connected-Lead":
+          stats.leads++;
+          break;
+      }
+    });
+
+    return stats;
+  } catch (error) {
+    console.error("Error fetching daily call stats:", error);
+    throw error;
+  }
+};
+
+export const convertPhoneNumberToProspect = async (
+  phoneNumberId: number,
+  prospectData: Omit<Prospect, "id" | "userId" | "phone">
+): Promise<Prospect> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    const phoneNumber = (await db.getFirstAsync(
+      "SELECT * FROM PhoneNumbers WHERE id = ?",
+      [phoneNumberId]
+    )) as PhoneNumber | null;
+
+    if (!phoneNumber) {
+      throw new Error("Phone number not found");
+    }
+
+    const result = await db.runAsync(
+      "INSERT INTO Prospects (userId, name, phone, email, company, status, followUpDate) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [
+        phoneNumber.userId,
+        prospectData.name,
+        phoneNumber.number,
+        prospectData.email,
+        prospectData.company,
+        prospectData.status,
+        prospectData.followUpDate,
+      ]
+    );
+
+    const newProspect: Prospect = {
+      id: result.lastInsertRowId,
+      userId: phoneNumber.userId,
+      phone: phoneNumber.number,
+      ...prospectData,
+    };
+
+    await db.runAsync(
+      "UPDATE PhoneNumbers SET isProspect = 1, prospectId = ? WHERE id = ?",
+      [newProspect.id, phoneNumberId]
+    );
+
+    console.log("Phone number converted to prospect:", newProspect);
+    return newProspect;
+  } catch (error) {
+    console.error("Error converting phone number to prospect:", error);
     throw error;
   }
 };
