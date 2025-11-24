@@ -31,7 +31,8 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "app.rork.sales_tracker_app_f3wvn4n"
+      "package": "app.rork.sales_tracker_app_f3wvn4n",
+      "permissions": ["android.permission.POST_NOTIFICATIONS"]
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
@@ -45,6 +46,7 @@
       ],
       "expo-font",
       "expo-web-browser",
+      "expo-notifications",
       [
         "expo-sqlite",
         {

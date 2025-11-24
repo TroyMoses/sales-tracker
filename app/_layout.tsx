@@ -5,6 +5,7 @@ import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import { SalesProvider } from "../contexts/SalesContext";
+import { useNotifications } from "../hooks/useNotifications";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -14,6 +15,8 @@ function RootLayoutNav() {
   const { user, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+
+  useNotifications();
 
   useEffect(() => {
     if (isLoading) return;

@@ -20,6 +20,7 @@ import {
 } from "../types";
 import { useAuth } from "./AuthContext";
 import * as db from "../services/database";
+import { scheduleAllFollowUpNotifications } from "../services/notificationService";
 
 interface SalesContextType {
   clients: Client[];
@@ -31,17 +32,26 @@ interface SalesContextType {
   callLogs: (CallLog & { number: string })[];
   isLoading: boolean;
   addClient: (client: Omit<Client, "id" | "userId">) => Promise<void>;
-  updateClient: (clientId: number, updates: Partial<Omit<Client, "id" | "userId">>) => Promise<void>;
+  updateClient: (
+    clientId: number,
+    updates: Partial<Omit<Client, "id" | "userId">>
+  ) => Promise<void>;
   deleteClient: (clientId: number) => Promise<void>;
   addProspect: (prospect: Omit<Prospect, "id" | "userId">) => Promise<void>;
-  updateProspect: (prospectId: number, updates: Partial<Omit<Prospect, "id" | "userId">>) => Promise<void>;
+  updateProspect: (
+    prospectId: number,
+    updates: Partial<Omit<Prospect, "id" | "userId">>
+  ) => Promise<void>;
   deleteProspect: (prospectId: number) => Promise<void>;
   updateProspectStatus: (
     prospectId: number,
     status: Prospect["status"]
   ) => Promise<void>;
   addSale: (sale: Omit<Sale, "id">) => Promise<void>;
-  updateSale: (saleId: number, updates: Partial<Omit<Sale, "id" | "clientId">>) => Promise<void>;
+  updateSale: (
+    saleId: number,
+    updates: Partial<Omit<Sale, "id" | "clientId">>
+  ) => Promise<void>;
   deleteSale: (saleId: number) => Promise<void>;
   convertProspectToClient: (
     prospectId: number,
@@ -62,7 +72,10 @@ interface SalesContextType {
     number: string;
     logData: Omit<CallLog, "id" | "phoneNumberId">;
   }) => Promise<void>;
-  updateCall: (callId: number, updates: Partial<Omit<CallLog, "id" | "phoneNumberId">>) => Promise<void>;
+  updateCall: (
+    callId: number,
+    updates: Partial<Omit<CallLog, "id" | "phoneNumberId">>
+  ) => Promise<void>;
   deleteCall: (callId: number) => Promise<void>;
   convertPhoneToProspect: (
     phoneNumberId: number,
@@ -172,7 +185,10 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateClient = async (clientId: number, updates: Partial<Omit<Client, "id" | "userId">>) => {
+  const updateClient = async (
+    clientId: number,
+    updates: Partial<Omit<Client, "id" | "userId">>
+  ) => {
     try {
       await db.updateClient(clientId, updates);
       setClients((prev) =>
@@ -226,7 +242,10 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateProspect = async (prospectId: number, updates: Partial<Omit<Prospect, "id" | "userId">>) => {
+  const updateProspect = async (
+    prospectId: number,
+    updates: Partial<Omit<Prospect, "id" | "userId">>
+  ) => {
     try {
       await db.updateProspect(prospectId, updates);
       setProspects((prev) =>
@@ -244,10 +263,14 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
       await db.deleteProspect(prospectId);
       setProspects((prev) => prev.filter((p) => p.id !== prospectId));
       setFollowUps((prev) =>
-        prev.filter((f) => !(f.entityId === prospectId && f.entityType === "prospect"))
+        prev.filter(
+          (f) => !(f.entityId === prospectId && f.entityType === "prospect")
+        )
       );
       setFollowUpsWithDetails((prev) =>
-        prev.filter((f) => !(f.entityId === prospectId && f.entityType === "prospect"))
+        prev.filter(
+          (f) => !(f.entityId === prospectId && f.entityType === "prospect")
+        )
       );
       console.log("Prospect deleted:", prospectId);
     } catch (error) {
@@ -267,7 +290,10 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateSale = async (saleId: number, updates: Partial<Omit<Sale, "id" | "clientId">>) => {
+  const updateSale = async (
+    saleId: number,
+    updates: Partial<Omit<Sale, "id" | "clientId">>
+  ) => {
     try {
       await db.updateSale(saleId, updates);
       setSales((prev) =>
@@ -308,10 +334,22 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const rescheduleNotifications = async (
+    followUpsWithDetails: FollowUpWithDetails[]
+  ) => {
+    try {
+      await scheduleAllFollowUpNotifications(followUpsWithDetails);
+    } catch (error) {
+      console.error("Error rescheduling notifications:", error);
+    }
+  };
+
   const addFollowUp = async (followUp: Omit<FollowUp, "id" | "createdAt">) => {
     try {
       const newFollowUp = await db.addFollowUp(followUp);
       await refreshData();
+      const updatedFollowUps = await db.getFollowUpsWithDetails(user!.id);
+      await rescheduleNotifications(updatedFollowUps);
       console.log("Follow-up added:", newFollowUp);
     } catch (error) {
       console.error("Error adding follow-up:", error);
@@ -335,6 +373,8 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
     try {
       await db.completeFollowUp(followUpId);
       await refreshData();
+      const updatedFollowUps = await db.getFollowUpsWithDetails(user!.id);
+      await rescheduleNotifications(updatedFollowUps);
       console.log("Follow-up completed:", followUpId);
     } catch (error) {
       console.error("Error completing follow-up:", error);
@@ -349,6 +389,8 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
     try {
       await db.updateFollowUp(followUpId, data);
       await refreshData();
+      const updatedFollowUps = await db.getFollowUpsWithDetails(user!.id);
+      await rescheduleNotifications(updatedFollowUps);
       console.log("Follow-up updated:", followUpId);
     } catch (error) {
       console.error("Error updating follow-up:", error);
@@ -360,6 +402,8 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
     try {
       await db.deleteFollowUp(followUpId);
       await refreshData();
+      const updatedFollowUps = await db.getFollowUpsWithDetails(user!.id);
+      await rescheduleNotifications(updatedFollowUps);
       console.log("Follow-up deleted:", followUpId);
     } catch (error) {
       console.error("Error deleting follow-up:", error);
