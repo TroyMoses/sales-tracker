@@ -901,6 +901,62 @@ export const getCallLogsByPhoneNumber = async (
   }
 };
 
+export const updateCallLog = async (
+  callLogId: number,
+  updates: Partial<Omit<CallLog, "id" | "phoneNumberId">>
+): Promise<void> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    const updateFields: string[] = [];
+    const values: (string | number)[] = [];
+
+    if (updates.date !== undefined) {
+      updateFields.push("date = ?");
+      values.push(updates.date);
+    }
+    if (updates.feedback !== undefined) {
+      updateFields.push("feedback = ?");
+      values.push(updates.feedback);
+    }
+    if (updates.duration !== undefined) {
+      updateFields.push("duration = ?");
+      values.push(updates.duration);
+    }
+    if (updates.shortNotes !== undefined) {
+      updateFields.push("shortNotes = ?");
+      values.push(updates.shortNotes);
+    }
+    if (updates.nextFollowUpDate !== undefined) {
+      updateFields.push("nextFollowUpDate = ?");
+      values.push(updates.nextFollowUpDate as string);
+    }
+
+    if (updateFields.length === 0) return;
+
+    values.push(callLogId);
+
+    await db.runAsync(
+      `UPDATE CallLogs SET ${updateFields.join(", ")} WHERE id = ?`,
+      values
+    );
+  } catch (error) {
+    console.error("Error updating call log:", error);
+    throw error;
+  }
+};
+
+export const deleteCallLog = async (callLogId: number): Promise<void> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    await db.runAsync("DELETE FROM CallLogs WHERE id = ?", [callLogId]);
+  } catch (error) {
+    console.error("Error deleting call log:", error);
+    throw error;
+  }
+};
+
 export const getDailyCallStats = async (
   userId: number,
   date: string

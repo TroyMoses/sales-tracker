@@ -23,7 +23,6 @@ import {
   Edit,
   Trash2,
 } from "lucide-react-native";
-import DatePicker from "react-native-date-picker";
 import { confirmDelete } from "../../utils/confirmDelete";
 
 export default function FollowUpsScreen() {
@@ -44,8 +43,8 @@ export default function FollowUpsScreen() {
   const [editingFollowUpId, setEditingFollowUpId] = useState<number | null>(null);
   const [entityType, setEntityType] = useState<FollowUpEntityType>("client");
   const [selectedEntityId, setSelectedEntityId] = useState<number | null>(null);
-  const [followUpDate, setFollowUpDate] = useState<Date>(new Date());
-  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [followUpDate, setFollowUpDate] = useState<string>("");
+  const [followUpTime, setFollowUpTime] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
 
   const { pending, completed, overdue } = useMemo(() => {
@@ -86,14 +85,68 @@ export default function FollowUpsScreen() {
     ]);
   };
 
+  const validateDateTimeInputs = (): boolean => {
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    const timeRegex = /^\d{2}:\d{2}$/;
+
+    if (!dateRegex.test(followUpDate)) {
+      Alert.alert("Invalid Date", "Please enter date in YYYY-MM-DD format");
+      return false;
+    }
+
+    if (!timeRegex.test(followUpTime)) {
+      Alert.alert("Invalid Time", "Please enter time in HH:MM format");
+      return false;
+    }
+
+    // Validate the date is actually valid
+    const dateParts = followUpDate.split("-");
+    const date = new Date(
+      parseInt(dateParts[0]),
+      parseInt(dateParts[1]) - 1,
+      parseInt(dateParts[2])
+    );
+    
+    if (isNaN(date.getTime())) {
+      Alert.alert("Invalid Date", "Please enter a valid date");
+      return false;
+    }
+
+    // Validate time parts
+    const timeParts = followUpTime.split(":");
+    const hours = parseInt(timeParts[0]);
+    const minutes = parseInt(timeParts[1]);
+
+    if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+      Alert.alert("Invalid Time", "Hours must be 0-23 and minutes 0-59");
+      return false;
+    }
+
+    return true;
+  };
+
   const handleAddFollowUp = async () => {
     if (!selectedEntityId || !notes.trim()) {
       Alert.alert("Error", "Please fill in all required fields");
       return;
     }
 
+    if (!validateDateTimeInputs()) {
+      return;
+    }
+
     try {
-      const dateTimeString = followUpDate.toISOString();
+      const timeParts = followUpTime.split(":");
+      const dateParts = followUpDate.split("-");
+      const date = new Date(
+        parseInt(dateParts[0]),
+        parseInt(dateParts[1]) - 1,
+        parseInt(dateParts[2]),
+        parseInt(timeParts[0]),
+        parseInt(timeParts[1])
+      );
+
+      const dateTimeString = date.toISOString();
 
       await addFollowUp({
         entityId: selectedEntityId,
@@ -118,8 +171,22 @@ export default function FollowUpsScreen() {
       return;
     }
 
+    if (!validateDateTimeInputs()) {
+      return;
+    }
+
     try {
-      const dateTimeString = followUpDate.toISOString();
+      const timeParts = followUpTime.split(":");
+      const dateParts = followUpDate.split("-");
+      const date = new Date(
+        parseInt(dateParts[0]),
+        parseInt(dateParts[1]) - 1,
+        parseInt(dateParts[2]),
+        parseInt(timeParts[0]),
+        parseInt(timeParts[1])
+      );
+
+      const dateTimeString = date.toISOString();
 
       await updateFollowUp(editingFollowUpId!, {
         date: dateTimeString,
@@ -148,13 +215,22 @@ export default function FollowUpsScreen() {
 
   const resetForm = () => {
     setSelectedEntityId(null);
-    setFollowUpDate(new Date());
+    setFollowUpDate("");
+    setFollowUpTime("");
     setNotes("");
     setEditingFollowUpId(null);
   };
 
   const openEditModal = (followUp: FollowUpWithDetails) => {
-    setFollowUpDate(new Date(followUp.date));
+    const followUpDateObj = new Date(followUp.date);
+    const year = followUpDateObj.getFullYear();
+    const month = String(followUpDateObj.getMonth() + 1).padStart(2, "0");
+    const day = String(followUpDateObj.getDate()).padStart(2, "0");
+    const hours = String(followUpDateObj.getHours()).padStart(2, "0");
+    const minutes = String(followUpDateObj.getMinutes()).padStart(2, "0");
+
+    setFollowUpDate(`${year}-${month}-${day}`);
+    setFollowUpTime(`${hours}:${minutes}`);
     setNotes(followUp.notes);
     setEditingFollowUpId(followUp.id);
     setShowAddModal(true);
@@ -162,6 +238,16 @@ export default function FollowUpsScreen() {
 
   const openAddModal = () => {
     resetForm();
+    // Set default date to today
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    
+    setFollowUpDate(`${year}-${month}-${day}`);
+    setFollowUpTime(`${hours}:${minutes}`);
     setShowAddModal(true);
   };
 
@@ -521,33 +607,22 @@ export default function FollowUpsScreen() {
                 )}
               </ScrollView>
 
-              <Text style={styles.label}>Date & Time</Text>
-              <TouchableOpacity
-                style={styles.datePickerButton}
-                onPress={() => setShowDatePicker(true)}
-              >
-                <Calendar size={18} color="#3b82f6" strokeWidth={2} />
-                <Text style={styles.datePickerButtonText}>
-                  {followUpDate.toLocaleDateString()} at{" "}
-                  {followUpDate.toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </Text>
-              </TouchableOpacity>
+              <Text style={styles.label}>Date (YYYY-MM-DD) *</Text>
+              <TextInput
+                style={styles.input}
+                value={followUpDate}
+                onChangeText={setFollowUpDate}
+                placeholder="e.g., 2025-12-25"
+                placeholderTextColor="#64748b"
+              />
 
-              <DatePicker
-                modal
-                open={showDatePicker}
-                date={followUpDate}
-                onConfirm={(date) => {
-                  setFollowUpDate(date);
-                  setShowDatePicker(false);
-                }}
-                onCancel={() => {
-                  setShowDatePicker(false);
-                }}
-                mode="datetime"
+              <Text style={styles.label}>Time (HH:MM) *</Text>
+              <TextInput
+                style={styles.input}
+                value={followUpTime}
+                onChangeText={setFollowUpTime}
+                placeholder="e.g., 14:30"
+                placeholderTextColor="#64748b"
               />
 
               <Text style={styles.label}>Notes</Text>
@@ -893,22 +968,6 @@ const styles = StyleSheet.create({
   textArea: {
     height: 100,
     textAlignVertical: "top",
-  },
-  datePickerButton: {
-    backgroundColor: "#0f172a",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#334155",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  datePickerButtonText: {
-    fontSize: 14,
-    color: "#fff",
-    flex: 1,
   },
   modalFooter: {
     flexDirection: "row",

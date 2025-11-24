@@ -62,6 +62,8 @@ interface SalesContextType {
     number: string;
     logData: Omit<CallLog, "id" | "phoneNumberId">;
   }) => Promise<void>;
+  updateCall: (callId: number, updates: Partial<Omit<CallLog, "id" | "phoneNumberId">>) => Promise<void>;
+  deleteCall: (callId: number) => Promise<void>;
   convertPhoneToProspect: (
     phoneNumberId: number,
     prospectData: Omit<Prospect, "id" | "userId" | "phone">
@@ -381,6 +383,31 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const updateCall = async (
+    callId: number,
+    updates: Partial<Omit<CallLog, "id" | "phoneNumberId">>
+  ) => {
+    try {
+      await db.updateCallLog(callId, updates);
+      await refreshData();
+      console.log("Call updated:", callId);
+    } catch (error) {
+      console.error("Error updating call:", error);
+      throw error;
+    }
+  };
+
+  const deleteCall = async (callId: number) => {
+    try {
+      await db.deleteCallLog(callId);
+      await refreshData();
+      console.log("Call deleted:", callId);
+    } catch (error) {
+      console.error("Error deleting call:", error);
+      throw error;
+    }
+  };
+
   const convertPhoneToProspect = async (
     phoneNumberId: number,
     prospectData: Omit<Prospect, "id" | "userId" | "phone">
@@ -462,6 +489,8 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
         updateFollowUp,
         deleteFollowUp,
         recordCall,
+        updateCall,
+        deleteCall,
         convertPhoneToProspect,
         getDailyCallStats,
         getPhoneNumberHistory,

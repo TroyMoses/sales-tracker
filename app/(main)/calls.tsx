@@ -22,13 +22,18 @@ import {
   XCircle,
   AlertCircle,
   TrendingUp,
+  Edit,
+  Trash2,
 } from "lucide-react-native";
+import { confirmDelete } from "../../utils/confirmDelete";
 
 export default function CallsScreen() {
   const {
     phoneNumbers,
     callLogs,
     recordCall,
+    updateCall,
+    deleteCall,
     convertPhoneToProspect,
     getDailyCallStats,
   } = useSales();
@@ -37,6 +42,7 @@ export default function CallsScreen() {
     useState<boolean>(false);
   const [selectedPhoneNumber, setSelectedPhoneNumber] =
     useState<PhoneNumber | null>(null);
+  const [editingCallId, setEditingCallId] = useState<number | null>(null);
   const [dailyStats, setDailyStats] = useState<{
     totalCalls: number;
     successful: number;
@@ -123,6 +129,71 @@ export default function CallsScreen() {
     } catch {
       Alert.alert("Error", "Failed to log call");
     }
+  };
+
+  const handleEditCall = async (callLog: CallLog & { number: string }) => {
+    if (!callFormData.shortNotes.trim()) {
+      Alert.alert("Error", "Please fill in notes");
+      return;
+    }
+
+    const duration = parseInt(callFormData.duration);
+    if (isNaN(duration) || duration < 0) {
+      Alert.alert("Error", "Please enter a valid duration");
+      return;
+    }
+
+    try {
+      await updateCall(callLog.id, {
+        feedback: callFormData.feedback,
+        duration,
+        shortNotes: callFormData.shortNotes,
+      });
+      setModalVisible(false);
+      setEditingCallId(null);
+      setCallFormData({
+        number: "",
+        feedback: "Not Answered",
+        duration: "0",
+        shortNotes: "",
+      });
+      Alert.alert("Success", "Call updated successfully");
+    } catch {
+      Alert.alert("Error", "Failed to update call");
+    }
+  };
+
+  const handleDeleteCall = (callLog: CallLog & { number: string }) => {
+    confirmDelete(`this call to "${callLog.number}"`, async () => {
+      try {
+        await deleteCall(callLog.id);
+        Alert.alert("Success", "Call deleted successfully");
+      } catch {
+        Alert.alert("Error", "Failed to delete call");
+      }
+    });
+  };
+
+  const openEditModal = (callLog: CallLog & { number: string }) => {
+    setCallFormData({
+      number: callLog.number,
+      feedback: callLog.feedback,
+      duration: callLog.duration.toString(),
+      shortNotes: callLog.shortNotes,
+    });
+    setEditingCallId(callLog.id);
+    setModalVisible(true);
+  };
+
+  const openAddModal = () => {
+    setCallFormData({
+      number: "",
+      feedback: "Not Answered",
+      duration: "0",
+      shortNotes: "",
+    });
+    setEditingCallId(null);
+    setModalVisible(true);
   };
 
   const handleConvertToProspect = async () => {
@@ -224,6 +295,20 @@ export default function CallsScreen() {
             {new Date(item.date).toLocaleString()} • {item.duration}s
           </Text>
         </View>
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            onPress={() => openEditModal(item)}
+            style={styles.editButton}
+          >
+            <Edit size={20} color="#3b82f6" strokeWidth={2} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => handleDeleteCall(item)}
+            style={styles.deleteButton}
+          >
+            <Trash2 size={20} color="#ef4444" strokeWidth={2} />
+          </TouchableOpacity>
+        </View>
         <View style={[styles.feedbackBadge, { backgroundColor: color + "20" }]}>
           <Text style={[styles.feedbackText, { color }]}>{item.feedback}</Text>
         </View>
@@ -312,10 +397,7 @@ export default function CallsScreen() {
         </View>
       </ScrollView>
 
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setModalVisible(true)}
-      >
+      <TouchableOpacity style={styles.fab} onPress={() => openAddModal()}>
         <Plus size={28} color="#fff" strokeWidth={2.5} />
       </TouchableOpacity>
 
@@ -331,7 +413,9 @@ export default function CallsScreen() {
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Log New Call</Text>
+              <Text style={styles.modalTitle}>
+                {editingCallId ? "Edit Call" : "Log New Call"}
+              </Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
                 <X size={24} color="#94a3b8" />
               </TouchableOpacity>
@@ -341,7 +425,11 @@ export default function CallsScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Phone Number *</Text>
                 <TextInput
-                  style={styles.input}
+                  style={
+                    editingCallId
+                      ? [styles.input, styles.inputDisabled]
+                      : styles.input
+                  }
                   value={callFormData.number}
                   onChangeText={(text) =>
                     setCallFormData({ ...callFormData, number: text })
@@ -349,6 +437,7 @@ export default function CallsScreen() {
                   placeholder="Enter phone number"
                   placeholderTextColor="#64748b"
                   keyboardType="phone-pad"
+                  editable={!editingCallId}
                 />
               </View>
 
@@ -428,9 +517,22 @@ export default function CallsScreen() {
 
               <TouchableOpacity
                 style={styles.submitButton}
-                onPress={handleRecordCall}
+                onPress={
+                  editingCallId
+                    ? () => {
+                        const callLog = callLogs.find(
+                          (log) => log.id === editingCallId
+                        );
+                        if (callLog) {
+                          handleEditCall(callLog);
+                        }
+                      }
+                    : handleRecordCall
+                }
               >
-                <Text style={styles.submitButtonText}>Log Call</Text>
+                <Text style={styles.submitButtonText}>
+                  {editingCallId ? "Update Call" : "Log Call"}
+                </Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -596,6 +698,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#64748b",
   },
+  actionButtons: {
+    flexDirection: "row",
+    gap: 8,
+    marginRight: 8,
+  },
+  editButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "#3b82f620",
+  },
+  deleteButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "#ef444420",
+  },
   feedbackBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -718,6 +835,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     color: "#fff",
+  },
+  inputDisabled: {
+    opacity: 0.6,
   },
   textArea: {
     minHeight: 100,
