@@ -236,6 +236,70 @@ export const getClientById = async (
   }
 };
 
+export const updateClient = async (
+  clientId: number,
+  updates: Partial<Omit<Client, "id" | "userId">>
+): Promise<void> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    const updateFields: string[] = [];
+    const values: (string | number)[] = [];
+
+    if (updates.name !== undefined) {
+      updateFields.push("name = ?");
+      values.push(updates.name);
+    }
+    if (updates.phone !== undefined) {
+      updateFields.push("phone = ?");
+      values.push(updates.phone);
+    }
+    if (updates.email !== undefined) {
+      updateFields.push("email = ?");
+      values.push(updates.email);
+    }
+    if (updates.company !== undefined) {
+      updateFields.push("company = ?");
+      values.push(updates.company);
+    }
+    if (updates.industry !== undefined) {
+      updateFields.push("industry = ?");
+      values.push(updates.industry);
+    }
+
+    if (updateFields.length === 0) return;
+
+    values.push(clientId);
+
+    await db.runAsync(
+      `UPDATE Clients SET ${updateFields.join(", ")} WHERE id = ?`,
+      values
+    );
+  } catch (error) {
+    console.error("Error updating client:", error);
+    throw error;
+  }
+};
+
+export const deleteClient = async (clientId: number): Promise<void> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    // Delete related follow-ups
+    await db.runAsync(
+      "DELETE FROM FollowUps WHERE entityId = ? AND entityType = 'client'",
+      [clientId]
+    );
+    // Delete related sales
+    await db.runAsync("DELETE FROM Sales WHERE clientId = ?", [clientId]);
+    // Delete the client
+    await db.runAsync("DELETE FROM Clients WHERE id = ?", [clientId]);
+  } catch (error) {
+    console.error("Error deleting client:", error);
+    throw error;
+  }
+};
+
 export const addProspect = async (
   userId: number,
   prospect: Omit<Prospect, "id" | "userId">
@@ -300,6 +364,72 @@ export const updateProspectStatus = async (
   }
 };
 
+export const updateProspect = async (
+  prospectId: number,
+  updates: Partial<Omit<Prospect, "id" | "userId">>
+): Promise<void> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    const updateFields: string[] = [];
+    const values: (string | number)[] = [];
+
+    if (updates.name !== undefined) {
+      updateFields.push("name = ?");
+      values.push(updates.name);
+    }
+    if (updates.phone !== undefined) {
+      updateFields.push("phone = ?");
+      values.push(updates.phone);
+    }
+    if (updates.email !== undefined) {
+      updateFields.push("email = ?");
+      values.push(updates.email);
+    }
+    if (updates.company !== undefined) {
+      updateFields.push("company = ?");
+      values.push(updates.company);
+    }
+    if (updates.status !== undefined) {
+      updateFields.push("status = ?");
+      values.push(updates.status);
+    }
+    if (updates.followUpDate !== undefined) {
+      updateFields.push("followUpDate = ?");
+      values.push(updates.followUpDate);
+    }
+
+    if (updateFields.length === 0) return;
+
+    values.push(prospectId);
+
+    await db.runAsync(
+      `UPDATE Prospects SET ${updateFields.join(", ")} WHERE id = ?`,
+      values
+    );
+  } catch (error) {
+    console.error("Error updating prospect:", error);
+    throw error;
+  }
+};
+
+export const deleteProspect = async (prospectId: number): Promise<void> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    // Delete related follow-ups
+    await db.runAsync(
+      "DELETE FROM FollowUps WHERE entityId = ? AND entityType = 'prospect'",
+      [prospectId]
+    );
+    // Delete the prospect
+    await db.runAsync("DELETE FROM Prospects WHERE id = ?", [prospectId]);
+  } catch (error) {
+    console.error("Error deleting prospect:", error);
+    throw error;
+  }
+};
+
 export const addSale = async (sale: Omit<Sale, "id">): Promise<Sale> => {
   if (!db) throw new Error("Database not initialized");
 
@@ -353,6 +483,54 @@ export const getSalesByClient = async (clientId: number): Promise<Sale[]> => {
     return sales;
   } catch (error) {
     console.error("Error fetching client sales:", error);
+    throw error;
+  }
+};
+
+export const updateSale = async (
+  saleId: number,
+  updates: Partial<Omit<Sale, "id" | "clientId">>
+): Promise<void> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    const updateFields: string[] = [];
+    const values: (string | number)[] = [];
+
+    if (updates.date !== undefined) {
+      updateFields.push("date = ?");
+      values.push(updates.date);
+    }
+    if (updates.amount !== undefined) {
+      updateFields.push("amount = ?");
+      values.push(updates.amount);
+    }
+    if (updates.productOrService !== undefined) {
+      updateFields.push("productOrService = ?");
+      values.push(updates.productOrService);
+    }
+
+    if (updateFields.length === 0) return;
+
+    values.push(saleId);
+
+    await db.runAsync(
+      `UPDATE Sales SET ${updateFields.join(", ")} WHERE id = ?`,
+      values
+    );
+  } catch (error) {
+    console.error("Error updating sale:", error);
+    throw error;
+  }
+};
+
+export const deleteSale = async (saleId: number): Promise<void> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    await db.runAsync("DELETE FROM Sales WHERE id = ?", [saleId]);
+  } catch (error) {
+    console.error("Error deleting sale:", error);
     throw error;
   }
 };

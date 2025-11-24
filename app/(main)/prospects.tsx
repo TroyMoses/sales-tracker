@@ -14,16 +14,18 @@ import {
 } from "react-native";
 import { useSales } from "../../contexts/SalesContext";
 import { Prospect } from "../../types";
-import { Target, Plus, X, Mail, Phone, TrendingUp } from "lucide-react-native";
+import { Target, Plus, X, Mail, Phone, TrendingUp, Edit, Trash2 } from "lucide-react-native";
+import { confirmDelete } from "../../utils/confirmDelete";
 
 export default function ProspectsScreen() {
-  const { prospects, addProspect, convertProspectToClient } = useSales();
+  const { prospects, addProspect, updateProspect, deleteProspect, convertProspectToClient } = useSales();
   const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [convertModalVisible, setConvertModalVisible] =
     useState<boolean>(false);
   const [selectedProspect, setSelectedProspect] = useState<Prospect | null>(
     null
   );
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<Omit<Prospect, "id" | "userId">>({
     name: "",
     phone: "",
@@ -61,6 +63,67 @@ export default function ProspectsScreen() {
     } catch {
       Alert.alert("Error", "Failed to add prospect");
     }
+  };
+
+  const handleEditProspect = async () => {
+    if (!formData.name.trim() || !formData.phone.trim()) {
+      Alert.alert("Error", "Please fill in at least name and phone");
+      return;
+    }
+
+    try {
+      await updateProspect(editingId!, formData);
+      setModalVisible(false);
+      setEditingId(null);
+      setFormData({
+        name: "",
+        phone: "",
+        email: "",
+        company: "",
+        status: "New",
+        followUpDate: new Date().toISOString().split("T")[0],
+      });
+      Alert.alert("Success", "Prospect updated successfully");
+    } catch {
+      Alert.alert("Error", "Failed to update prospect");
+    }
+  };
+
+  const handleDeleteProspect = (prospect: Prospect) => {
+    confirmDelete(`"${prospect.name}"`, async () => {
+      try {
+        await deleteProspect(prospect.id);
+        Alert.alert("Success", "Prospect deleted successfully");
+      } catch {
+        Alert.alert("Error", "Failed to delete prospect");
+      }
+    });
+  };
+
+  const openEditModal = (prospect: Prospect) => {
+    setFormData({
+      name: prospect.name,
+      phone: prospect.phone,
+      email: prospect.email,
+      company: prospect.company,
+      status: prospect.status,
+      followUpDate: prospect.followUpDate,
+    });
+    setEditingId(prospect.id);
+    setModalVisible(true);
+  };
+
+  const openAddModal = () => {
+    setFormData({
+      name: "",
+      phone: "",
+      email: "",
+      company: "",
+      status: "New",
+      followUpDate: new Date().toISOString().split("T")[0],
+    });
+    setEditingId(null);
+    setModalVisible(true);
   };
 
   const handleConvertToClient = async () => {
@@ -149,6 +212,20 @@ export default function ProspectsScreen() {
           </Text>
         </View>
       </View>
+      <View style={styles.prospectActions}>
+        <TouchableOpacity
+          onPress={() => openEditModal(item)}
+          style={styles.actionButton}
+        >
+          <Edit size={18} color="#3b82f6" strokeWidth={2} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => handleDeleteProspect(item)}
+          style={styles.actionButton}
+        >
+          <Trash2 size={18} color="#ef4444" strokeWidth={2} />
+        </TouchableOpacity>
+      </View>
       <View style={styles.prospectDetails}>
         {item.phone ? (
           <View style={styles.detailRow}>
@@ -195,7 +272,7 @@ export default function ProspectsScreen() {
 
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => setModalVisible(true)}
+        onPress={() => openAddModal()}
       >
         <Plus size={28} color="#fff" strokeWidth={2.5} />
       </TouchableOpacity>
@@ -212,7 +289,9 @@ export default function ProspectsScreen() {
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add New Prospect</Text>
+              <Text style={styles.modalTitle}>
+                {editingId ? "Edit Prospect" : "Add New Prospect"}
+              </Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
                 <X size={24} color="#94a3b8" />
               </TouchableOpacity>
@@ -276,9 +355,11 @@ export default function ProspectsScreen() {
 
               <TouchableOpacity
                 style={styles.submitButton}
-                onPress={handleAddProspect}
+                onPress={editingId ? handleEditProspect : handleAddProspect}
               >
-                <Text style={styles.submitButtonText}>Add Prospect</Text>
+                <Text style={styles.submitButtonText}>
+                  {editingId ? "Update Prospect" : "Add Prospect"}
+                </Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -391,6 +472,14 @@ const styles = StyleSheet.create({
   },
   prospectInfo: {
     flex: 1,
+  },
+  prospectActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  actionButton: {
+    padding: 8,
+    borderRadius: 8,
   },
   prospectName: {
     fontSize: 18,

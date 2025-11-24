@@ -14,11 +14,13 @@ import {
 } from "react-native";
 import { useSales } from "../../contexts/SalesContext";
 import { Client } from "../../types";
-import { Users, Plus, X, Mail, Phone, Briefcase } from "lucide-react-native";
+import { Users, Plus, X, Mail, Phone, Briefcase, Edit, Trash2 } from "lucide-react-native";
+import { confirmDelete } from "../../utils/confirmDelete";
 
 export default function ClientsScreen() {
-  const { clients, addClient } = useSales();
+  const { clients, addClient, updateClient, deleteClient } = useSales();
   const [modalVisible, setModalVisible] = useState<boolean>(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<Omit<Client, "id" | "userId">>({
     name: "",
     phone: "",
@@ -49,6 +51,64 @@ export default function ClientsScreen() {
     }
   };
 
+  const handleEditClient = async () => {
+    if (!formData.name.trim() || !formData.phone.trim()) {
+      Alert.alert("Error", "Please fill in at least name and phone");
+      return;
+    }
+
+    try {
+      await updateClient(editingId!, formData);
+      setModalVisible(false);
+      setEditingId(null);
+      setFormData({
+        name: "",
+        phone: "",
+        email: "",
+        company: "",
+        industry: "",
+      });
+      Alert.alert("Success", "Client updated successfully");
+    } catch {
+      Alert.alert("Error", "Failed to update client");
+    }
+  };
+
+  const handleDeleteClient = (client: Client) => {
+    confirmDelete(`"${client.name}"`, async () => {
+      try {
+        await deleteClient(client.id);
+        Alert.alert("Success", "Client deleted successfully");
+      } catch {
+        Alert.alert("Error", "Failed to delete client");
+      }
+    });
+  };
+
+  const openEditModal = (client: Client) => {
+    setFormData({
+      name: client.name,
+      phone: client.phone,
+      email: client.email,
+      company: client.company,
+      industry: client.industry,
+    });
+    setEditingId(client.id);
+    setModalVisible(true);
+  };
+
+  const openAddModal = () => {
+    setFormData({
+      name: "",
+      phone: "",
+      email: "",
+      company: "",
+      industry: "",
+    });
+    setEditingId(null);
+    setModalVisible(true);
+  };
+
   const renderClient = ({ item }: { item: Client }) => (
     <View style={styles.clientCard}>
       <View style={styles.clientHeader}>
@@ -60,6 +120,20 @@ export default function ClientsScreen() {
           {item.company ? (
             <Text style={styles.clientCompany}>{item.company}</Text>
           ) : null}
+        </View>
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            onPress={() => openEditModal(item)}
+            style={styles.editButton}
+          >
+            <Edit size={20} color="#3b82f6" strokeWidth={2} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => handleDeleteClient(item)}
+            style={styles.deleteButton}
+          >
+            <Trash2 size={20} color="#ef4444" strokeWidth={2} />
+          </TouchableOpacity>
         </View>
       </View>
       <View style={styles.clientDetails}>
@@ -105,7 +179,7 @@ export default function ClientsScreen() {
 
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => setModalVisible(true)}
+        onPress={() => openAddModal()}
       >
         <Plus size={28} color="#fff" strokeWidth={2.5} />
       </TouchableOpacity>
@@ -122,7 +196,9 @@ export default function ClientsScreen() {
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add New Client</Text>
+              <Text style={styles.modalTitle}>
+                {editingId ? "Edit Client" : "Add New Client"}
+              </Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
                 <X size={24} color="#94a3b8" />
               </TouchableOpacity>
@@ -199,9 +275,11 @@ export default function ClientsScreen() {
 
               <TouchableOpacity
                 style={styles.submitButton}
-                onPress={handleAddClient}
+                onPress={editingId ? handleEditClient : handleAddClient}
               >
-                <Text style={styles.submitButtonText}>Add Client</Text>
+                <Text style={styles.submitButtonText}>
+                  {editingId ? "Update Client" : "Add Client"}
+                </Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -242,6 +320,20 @@ const styles = StyleSheet.create({
   },
   clientInfo: {
     flex: 1,
+  },
+  actionButtons: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  editButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "#3b82f620",
+  },
+  deleteButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: "#ef444420",
   },
   clientName: {
     fontSize: 18,

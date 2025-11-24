@@ -31,12 +31,18 @@ interface SalesContextType {
   callLogs: (CallLog & { number: string })[];
   isLoading: boolean;
   addClient: (client: Omit<Client, "id" | "userId">) => Promise<void>;
+  updateClient: (clientId: number, updates: Partial<Omit<Client, "id" | "userId">>) => Promise<void>;
+  deleteClient: (clientId: number) => Promise<void>;
   addProspect: (prospect: Omit<Prospect, "id" | "userId">) => Promise<void>;
+  updateProspect: (prospectId: number, updates: Partial<Omit<Prospect, "id" | "userId">>) => Promise<void>;
+  deleteProspect: (prospectId: number) => Promise<void>;
   updateProspectStatus: (
     prospectId: number,
     status: Prospect["status"]
   ) => Promise<void>;
   addSale: (sale: Omit<Sale, "id">) => Promise<void>;
+  updateSale: (saleId: number, updates: Partial<Omit<Sale, "id" | "clientId">>) => Promise<void>;
+  deleteSale: (saleId: number) => Promise<void>;
   convertProspectToClient: (
     prospectId: number,
     saleData: Omit<Sale, "id" | "clientId">
@@ -164,6 +170,31 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const updateClient = async (clientId: number, updates: Partial<Omit<Client, "id" | "userId">>) => {
+    try {
+      await db.updateClient(clientId, updates);
+      setClients((prev) =>
+        prev.map((c) => (c.id === clientId ? { ...c, ...updates } : c))
+      );
+      console.log("Client updated:", clientId);
+    } catch (error) {
+      console.error("Error updating client:", error);
+      throw error;
+    }
+  };
+
+  const deleteClient = async (clientId: number) => {
+    try {
+      await db.deleteClient(clientId);
+      setClients((prev) => prev.filter((c) => c.id !== clientId));
+      setSales((prev) => prev.filter((s) => s.clientId !== clientId));
+      console.log("Client deleted:", clientId);
+    } catch (error) {
+      console.error("Error deleting client:", error);
+      throw error;
+    }
+  };
+
   const addProspect = async (prospect: Omit<Prospect, "id" | "userId">) => {
     if (!user) throw new Error("User not authenticated");
 
@@ -193,6 +224,36 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const updateProspect = async (prospectId: number, updates: Partial<Omit<Prospect, "id" | "userId">>) => {
+    try {
+      await db.updateProspect(prospectId, updates);
+      setProspects((prev) =>
+        prev.map((p) => (p.id === prospectId ? { ...p, ...updates } : p))
+      );
+      console.log("Prospect updated:", prospectId);
+    } catch (error) {
+      console.error("Error updating prospect:", error);
+      throw error;
+    }
+  };
+
+  const deleteProspect = async (prospectId: number) => {
+    try {
+      await db.deleteProspect(prospectId);
+      setProspects((prev) => prev.filter((p) => p.id !== prospectId));
+      setFollowUps((prev) =>
+        prev.filter((f) => !(f.entityId === prospectId && f.entityType === "prospect"))
+      );
+      setFollowUpsWithDetails((prev) =>
+        prev.filter((f) => !(f.entityId === prospectId && f.entityType === "prospect"))
+      );
+      console.log("Prospect deleted:", prospectId);
+    } catch (error) {
+      console.error("Error deleting prospect:", error);
+      throw error;
+    }
+  };
+
   const addSale = async (sale: Omit<Sale, "id">) => {
     try {
       const newSale = await db.addSale(sale);
@@ -200,6 +261,30 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
       console.log("Sale added:", newSale);
     } catch (error) {
       console.error("Error adding sale:", error);
+      throw error;
+    }
+  };
+
+  const updateSale = async (saleId: number, updates: Partial<Omit<Sale, "id" | "clientId">>) => {
+    try {
+      await db.updateSale(saleId, updates);
+      setSales((prev) =>
+        prev.map((s) => (s.id === saleId ? { ...s, ...updates } : s))
+      );
+      console.log("Sale updated:", saleId);
+    } catch (error) {
+      console.error("Error updating sale:", error);
+      throw error;
+    }
+  };
+
+  const deleteSale = async (saleId: number) => {
+    try {
+      await db.deleteSale(saleId);
+      setSales((prev) => prev.filter((s) => s.id !== saleId));
+      console.log("Sale deleted:", saleId);
+    } catch (error) {
+      console.error("Error deleting sale:", error);
       throw error;
     }
   };
@@ -361,9 +446,15 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
         callLogs,
         isLoading,
         addClient,
+        updateClient,
+        deleteClient,
         addProspect,
+        updateProspect,
+        deleteProspect,
         updateProspectStatus,
         addSale,
+        updateSale,
+        deleteSale,
         convertProspectToClient,
         addFollowUp,
         getFollowUpsByEntity,

@@ -20,13 +20,19 @@ import {
   Target,
   Plus,
   X,
+  Edit,
+  Trash2,
 } from "lucide-react-native";
+import DatePicker from "react-native-date-picker";
+import { confirmDelete } from "../../utils/confirmDelete";
 
 export default function FollowUpsScreen() {
   const {
     followUpsWithDetails,
     completeFollowUp,
     addFollowUp,
+    updateFollowUp,
+    deleteFollowUp,
     clients,
     prospects,
     phoneNumbers,
@@ -35,10 +41,11 @@ export default function FollowUpsScreen() {
     "pending"
   );
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
+  const [editingFollowUpId, setEditingFollowUpId] = useState<number | null>(null);
   const [entityType, setEntityType] = useState<FollowUpEntityType>("client");
   const [selectedEntityId, setSelectedEntityId] = useState<number | null>(null);
-  const [followUpDate, setFollowUpDate] = useState<string>("");
-  const [followUpTime, setFollowUpTime] = useState<string>("09:00");
+  const [followUpDate, setFollowUpDate] = useState<Date>(new Date());
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [notes, setNotes] = useState<string>("");
 
   const { pending, completed, overdue } = useMemo(() => {
@@ -51,8 +58,8 @@ export default function FollowUpsScreen() {
     );
 
     const overdueFollowUps = pendingFollowUps.filter((f) => {
-      const followUpDate = new Date(f.date);
-      return followUpDate < now;
+      const followUpDateObj = new Date(f.date);
+      return followUpDateObj < now;
     });
 
     return {
@@ -80,13 +87,13 @@ export default function FollowUpsScreen() {
   };
 
   const handleAddFollowUp = async () => {
-    if (!selectedEntityId || !followUpDate || !notes.trim()) {
+    if (!selectedEntityId || !notes.trim()) {
       Alert.alert("Error", "Please fill in all required fields");
       return;
     }
 
     try {
-      const dateTimeString = `${followUpDate}T${followUpTime}:00.000Z`;
+      const dateTimeString = followUpDate.toISOString();
 
       await addFollowUp({
         entityId: selectedEntityId,
@@ -97,15 +104,65 @@ export default function FollowUpsScreen() {
       });
 
       setShowAddModal(false);
-      setSelectedEntityId(null);
-      setFollowUpDate("");
-      setFollowUpTime("09:00");
-      setNotes("");
+      resetForm();
 
       Alert.alert("Success", "Follow-up created successfully");
     } catch {
       Alert.alert("Error", "Failed to create follow-up");
     }
+  };
+
+  const handleEditFollowUp = async () => {
+    if (!notes.trim()) {
+      Alert.alert("Error", "Please fill in all required fields");
+      return;
+    }
+
+    try {
+      const dateTimeString = followUpDate.toISOString();
+
+      await updateFollowUp(editingFollowUpId!, {
+        date: dateTimeString,
+        notes: notes.trim(),
+      });
+
+      setShowAddModal(false);
+      resetForm();
+
+      Alert.alert("Success", "Follow-up updated successfully");
+    } catch {
+      Alert.alert("Error", "Failed to update follow-up");
+    }
+  };
+
+  const handleDeleteFollowUp = (followUp: FollowUpWithDetails) => {
+    confirmDelete(`this follow-up for "${followUp.entityName}"`, async () => {
+      try {
+        await deleteFollowUp(followUp.id);
+        Alert.alert("Success", "Follow-up deleted successfully");
+      } catch {
+        Alert.alert("Error", "Failed to delete follow-up");
+      }
+    });
+  };
+
+  const resetForm = () => {
+    setSelectedEntityId(null);
+    setFollowUpDate(new Date());
+    setNotes("");
+    setEditingFollowUpId(null);
+  };
+
+  const openEditModal = (followUp: FollowUpWithDetails) => {
+    setFollowUpDate(new Date(followUp.date));
+    setNotes(followUp.notes);
+    setEditingFollowUpId(followUp.id);
+    setShowAddModal(true);
+  };
+
+  const openAddModal = () => {
+    resetForm();
+    setShowAddModal(true);
   };
 
   const getEntityOptions = () => {
@@ -154,8 +211,8 @@ export default function FollowUpsScreen() {
   const renderFollowUp = (item: FollowUpWithDetails) => {
     const Icon = getEntityIcon(item.entityType);
     const color = getEntityColor(item.entityType);
-    const followUpDate = new Date(item.date);
-    const isOverdue = followUpDate < new Date() && item.isCompleted === 0;
+    const followUpDateObj = new Date(item.date);
+    const isOverdue = followUpDateObj < new Date() && item.isCompleted === 0;
 
     return (
       <View key={item.id} style={styles.followUpCard}>
@@ -174,19 +231,37 @@ export default function FollowUpsScreen() {
               <Text style={styles.entityPhone}>{item.entityPhone}</Text>
             ) : null}
           </View>
-          {isOverdue && (
-            <View style={styles.overdueTag}>
-              <Text style={styles.overdueText}>Overdue</Text>
-            </View>
-          )}
+          <View style={styles.followUpActions}>
+            {item.isCompleted === 0 && (
+              <>
+                <TouchableOpacity
+                  onPress={() => openEditModal(item)}
+                  style={styles.actionIconButton}
+                >
+                  <Edit size={18} color="#3b82f6" strokeWidth={2} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleDeleteFollowUp(item)}
+                  style={styles.actionIconButton}
+                >
+                  <Trash2 size={18} color="#ef4444" strokeWidth={2} />
+                </TouchableOpacity>
+              </>
+            )}
+            {isOverdue && (
+              <View style={styles.overdueTag}>
+                <Text style={styles.overdueText}>Overdue</Text>
+              </View>
+            )}
+          </View>
         </View>
 
         <View style={styles.followUpDetails}>
           <View style={styles.detailRow}>
             <Calendar size={16} color="#64748b" />
             <Text style={styles.detailText}>
-              {followUpDate.toLocaleDateString()} at{" "}
-              {followUpDate.toLocaleTimeString([], {
+              {followUpDateObj.toLocaleDateString()} at{" "}
+              {followUpDateObj.toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
               })}
@@ -303,7 +378,7 @@ export default function FollowUpsScreen() {
 
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => setShowAddModal(true)}
+        onPress={() => openAddModal()}
       >
         <Plus size={24} color="#fff" strokeWidth={2.5} />
       </TouchableOpacity>
@@ -317,7 +392,9 @@ export default function FollowUpsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Follow-up</Text>
+              <Text style={styles.modalTitle}>
+                {editingFollowUpId ? "Edit Follow-up" : "Add Follow-up"}
+              </Text>
               <TouchableOpacity onPress={() => setShowAddModal(false)}>
                 <X size={24} color="#94a3b8" strokeWidth={2} />
               </TouchableOpacity>
@@ -444,22 +521,33 @@ export default function FollowUpsScreen() {
                 )}
               </ScrollView>
 
-              <Text style={styles.label}>Date</Text>
-              <TextInput
-                style={styles.input}
-                value={followUpDate}
-                onChangeText={setFollowUpDate}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor="#64748b"
-              />
+              <Text style={styles.label}>Date & Time</Text>
+              <TouchableOpacity
+                style={styles.datePickerButton}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Calendar size={18} color="#3b82f6" strokeWidth={2} />
+                <Text style={styles.datePickerButtonText}>
+                  {followUpDate.toLocaleDateString()} at{" "}
+                  {followUpDate.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </Text>
+              </TouchableOpacity>
 
-              <Text style={styles.label}>Time</Text>
-              <TextInput
-                style={styles.input}
-                value={followUpTime}
-                onChangeText={setFollowUpTime}
-                placeholder="HH:MM"
-                placeholderTextColor="#64748b"
+              <DatePicker
+                modal
+                open={showDatePicker}
+                date={followUpDate}
+                onConfirm={(date) => {
+                  setFollowUpDate(date);
+                  setShowDatePicker(false);
+                }}
+                onCancel={() => {
+                  setShowDatePicker(false);
+                }}
+                mode="datetime"
               />
 
               <Text style={styles.label}>Notes</Text>
@@ -483,9 +571,11 @@ export default function FollowUpsScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.addButton}
-                onPress={handleAddFollowUp}
+                onPress={editingFollowUpId ? handleEditFollowUp : handleAddFollowUp}
               >
-                <Text style={styles.addButtonText}>Add Follow-up</Text>
+                <Text style={styles.addButtonText}>
+                  {editingFollowUpId ? "Update Follow-up" : "Add Follow-up"}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -589,6 +679,15 @@ const styles = StyleSheet.create({
   entityPhone: {
     fontSize: 12,
     color: "#64748b",
+  },
+  followUpActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  actionIconButton: {
+    padding: 6,
+    borderRadius: 6,
   },
   overdueTag: {
     backgroundColor: "#ef444420",
@@ -794,6 +893,22 @@ const styles = StyleSheet.create({
   textArea: {
     height: 100,
     textAlignVertical: "top",
+  },
+  datePickerButton: {
+    backgroundColor: "#0f172a",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#334155",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  datePickerButtonText: {
+    fontSize: 14,
+    color: "#fff",
+    flex: 1,
   },
   modalFooter: {
     flexDirection: "row",

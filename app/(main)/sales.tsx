@@ -14,11 +14,13 @@ import {
 } from "react-native";
 import { useSales } from "../../contexts/SalesContext";
 import { Sale } from "../../types";
-import { DollarSign, Plus, X } from "lucide-react-native";
+import { DollarSign, Plus, X, Edit, Trash2 } from "lucide-react-native";
+import { confirmDelete } from "../../utils/confirmDelete";
 
 export default function SalesScreen() {
-  const { sales, clients, addSale } = useSales();
+  const { sales, clients, addSale, updateSale, deleteSale } = useSales();
   const [modalVisible, setModalVisible] = useState<boolean>(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<{
     clientId: string;
     amount: string;
@@ -67,6 +69,71 @@ export default function SalesScreen() {
     }
   };
 
+  const handleEditSale = async () => {
+    if (!formData.amount.trim() || !formData.productOrService.trim()) {
+      Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
+
+    const amount = parseFloat(formData.amount);
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert("Error", "Please enter a valid amount");
+      return;
+    }
+
+    try {
+      await updateSale(editingId!, {
+        amount,
+        productOrService: formData.productOrService,
+        date: formData.date,
+      });
+      setModalVisible(false);
+      setEditingId(null);
+      setFormData({
+        clientId: "",
+        amount: "",
+        productOrService: "",
+        date: new Date().toISOString().split("T")[0],
+      });
+      Alert.alert("Success", "Sale updated successfully");
+    } catch {
+      Alert.alert("Error", "Failed to update sale");
+    }
+  };
+
+  const handleDeleteSale = (sale: Sale & { clientName: string }) => {
+    confirmDelete(`this sale for "${sale.clientName}"`, async () => {
+      try {
+        await deleteSale(sale.id);
+        Alert.alert("Success", "Sale deleted successfully");
+      } catch {
+        Alert.alert("Error", "Failed to delete sale");
+      }
+    });
+  };
+
+  const openEditModal = (sale: Sale & { clientName: string }) => {
+    setFormData({
+      clientId: sale.clientId.toString(),
+      amount: sale.amount.toString(),
+      productOrService: sale.productOrService,
+      date: sale.date,
+    });
+    setEditingId(sale.id);
+    setModalVisible(true);
+  };
+
+  const openAddModal = () => {
+    setFormData({
+      clientId: "",
+      amount: "",
+      productOrService: "",
+      date: new Date().toISOString().split("T")[0],
+    });
+    setEditingId(null);
+    setModalVisible(true);
+  };
+
   const renderSale = ({ item }: { item: Sale & { clientName: string } }) => (
     <View style={styles.saleCard}>
       <View style={styles.saleHeader}>
@@ -80,9 +147,25 @@ export default function SalesScreen() {
             {new Date(item.date).toLocaleDateString()}
           </Text>
         </View>
-        <Text style={styles.saleAmount}>
-          UGX {item.amount.toLocaleString()}
-        </Text>
+        <View style={styles.saleActions}>
+          <Text style={styles.saleAmount}>
+            UGX {item.amount.toLocaleString()}
+          </Text>
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              onPress={() => openEditModal(item)}
+              style={styles.actionButton}
+            >
+              <Edit size={18} color="#3b82f6" strokeWidth={2} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => handleDeleteSale(item)}
+              style={styles.actionButton}
+            >
+              <Trash2 size={18} color="#ef4444" strokeWidth={2} />
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -107,7 +190,7 @@ export default function SalesScreen() {
 
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => setModalVisible(true)}
+        onPress={() => openAddModal()}
       >
         <Plus size={28} color="#fff" strokeWidth={2.5} />
       </TouchableOpacity>
@@ -124,7 +207,9 @@ export default function SalesScreen() {
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Record New Sale</Text>
+              <Text style={styles.modalTitle}>
+                {editingId ? "Edit Sale" : "Record New Sale"}
+              </Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
                 <X size={24} color="#94a3b8" />
               </TouchableOpacity>
@@ -196,9 +281,11 @@ export default function SalesScreen() {
 
               <TouchableOpacity
                 style={styles.submitButton}
-                onPress={handleAddSale}
+                onPress={editingId ? handleEditSale : handleAddSale}
               >
-                <Text style={styles.submitButtonText}>Record Sale</Text>
+                <Text style={styles.submitButtonText}>
+                  {editingId ? "Update Sale" : "Record Sale"}
+                </Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -239,6 +326,18 @@ const styles = StyleSheet.create({
   saleInfo: {
     flex: 1,
     gap: 4,
+  },
+  saleActions: {
+    alignItems: "flex-end",
+    gap: 8,
+  },
+  actionButtons: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  actionButton: {
+    padding: 8,
+    borderRadius: 8,
   },
   saleClient: {
     fontSize: 16,
