@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Dimensions,
 } from "react-native";
 import { useSales } from "../../contexts/SalesContext";
 import { useAuth } from "../../contexts/AuthContext";
@@ -15,17 +16,20 @@ import {
   DollarSign,
   Calendar,
   Phone,
+  BarChart3,
 } from "lucide-react-native";
 import { router } from "expo-router";
 
+const { width } = Dimensions.get("window");
+
 export default function DashboardScreen() {
   const { user } = useAuth();
-  const { clients, prospects, sales, followUps } = useSales();
+  const { clients, prospects, sales, followUpsWithDetails } = useSales();
 
   const metrics = useMemo(() => {
     const totalRevenue = sales.reduce((sum, sale) => sum + sale.amount, 0);
     const activeProspects = prospects.filter((p) => p.status !== "Won").length;
-    const pendingFollowUps = followUps.filter(
+    const pendingFollowUps = followUpsWithDetails.filter(
       (f) => f.isCompleted === 0
     ).length;
     const recentSales = sales.slice(0, 5);
@@ -38,7 +42,7 @@ export default function DashboardScreen() {
       totalClients: clients.length,
       totalProspects: prospects.length,
     };
-  }, [clients, prospects, sales, followUps]);
+  }, [clients, prospects, sales, followUpsWithDetails]);
 
   const MetricCard = ({
     icon: Icon,
@@ -104,6 +108,7 @@ export default function DashboardScreen() {
           label="Pending Follow-ups"
           value={metrics.pendingFollowUps}
           color="#8b5cf6"
+          onPress={() => router.push("/(main)/followups")}
         />
       </View>
 
@@ -164,6 +169,20 @@ export default function DashboardScreen() {
           >
             <Target size={24} color="#f59e0b" strokeWidth={2} />
             <Text style={styles.actionText}>Add Prospect</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => router.push("/(main)/followups")}
+          >
+            <Calendar size={24} color="#8b5cf6" strokeWidth={2} />
+            <Text style={styles.actionText}>Follow-ups</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => router.push("/(main)/analytics")}
+          >
+            <BarChart3 size={24} color="#10b981" strokeWidth={2} />
+            <Text style={styles.actionText}>Analytics</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -312,11 +331,12 @@ const styles = StyleSheet.create({
   },
   actionsGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
     marginTop: 16,
   },
   actionButton: {
-    flex: 1,
+    width: (width - 52) / 2,
     backgroundColor: "#1e293b",
     borderRadius: 12,
     padding: 20,

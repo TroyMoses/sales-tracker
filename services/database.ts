@@ -9,6 +9,9 @@ import {
   PhoneNumber,
   CallLog,
   DailyCallStats,
+  FollowUpWithDetails,
+  AnalyticsData,
+  FollowUpEntityType,
 } from "../types";
 
 let SQLite: any = null;
@@ -30,11 +33,9 @@ export const initDatabase = async (): Promise<void> => {
   }
 
   try {
-    db = await SQLite.openDatabaseAsync("salestracker.db");
+    db = await SQLite.openDatabaseAsync("salestrackerdb.db");
 
     await db.execAsync(`
-      PRAGMA journal_mode = WAL;
-      
       CREATE TABLE IF NOT EXISTS Users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
@@ -77,10 +78,11 @@ export const initDatabase = async (): Promise<void> => {
       CREATE TABLE IF NOT EXISTS FollowUps (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         entityId INTEGER NOT NULL,
-        isClient INTEGER NOT NULL,
+        entityType TEXT NOT NULL,
         date TEXT NOT NULL,
         notes TEXT NOT NULL,
-        isCompleted INTEGER NOT NULL DEFAULT 0
+        isCompleted INTEGER NOT NULL DEFAULT 0,
+        createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
       
       CREATE TABLE IF NOT EXISTS PhoneNumbers (
@@ -421,24 +423,27 @@ export const convertProspectToClientAndRecordSale = async (
 };
 
 export const addFollowUp = async (
-  followUp: Omit<FollowUp, "id">
+  followUp: Omit<FollowUp, "id" | "createdAt">
 ): Promise<FollowUp> => {
   if (!db) throw new Error("Database not initialized");
 
   try {
+    const createdAt = new Date().toISOString();
     const result = await db.runAsync(
-      "INSERT INTO FollowUps (entityId, isClient, date, notes, isCompleted) VALUES (?, ?, ?, ?, ?)",
+      "INSERT INTO FollowUps (entityId, entityType, date, notes, isCompleted, createdAt) VALUES (?, ?, ?, ?, ?, ?)",
       [
         followUp.entityId,
-        followUp.isClient,
+        followUp.entityType,
         followUp.date,
         followUp.notes,
         followUp.isCompleted,
+        createdAt,
       ]
     );
 
     return {
       id: result.lastInsertRowId,
+      createdAt,
       ...followUp,
     };
   } catch (error) {
@@ -453,16 +458,75 @@ export const getFollowUps = async (userId: number): Promise<FollowUp[]> => {
   try {
     const followUps = (await db.getAllAsync(
       `SELECT FollowUps.* FROM FollowUps
-       LEFT JOIN Clients ON FollowUps.entityId = Clients.id AND FollowUps.isClient = 1
-       LEFT JOIN Prospects ON FollowUps.entityId = Prospects.id AND FollowUps.isClient = 0
-       WHERE (Clients.userId = ? OR Prospects.userId = ?)
+       LEFT JOIN Clients ON FollowUps.entityId = Clients.id AND FollowUps.entityType = 'client'
+       LEFT JOIN Prospects ON FollowUps.entityId = Prospects.id AND FollowUps.entityType = 'prospect'
+       LEFT JOIN PhoneNumbers ON FollowUps.entityId = PhoneNumbers.id AND FollowUps.entityType = 'phoneNumber'
+       WHERE Clients.userId = ? OR Prospects.userId = ? OR PhoneNumbers.userId = ?
        ORDER BY FollowUps.date ASC`,
-      [userId, userId]
+      [userId, userId, userId]
     )) as FollowUp[];
 
     return followUps;
   } catch (error) {
     console.error("Error fetching follow-ups:", error);
+    throw error;
+  }
+};
+
+export const getFollowUpsWithDetails = async (
+  userId: number
+): Promise<FollowUpWithDetails[]> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    const followUps = (await db.getAllAsync(
+      `SELECT 
+        FollowUps.*,
+        CASE 
+          WHEN FollowUps.entityType = 'client' THEN Clients.name
+          WHEN FollowUps.entityType = 'prospect' THEN Prospects.name
+          WHEN FollowUps.entityType = 'phoneNumber' THEN PhoneNumbers.number
+        END as entityName,
+        CASE 
+          WHEN FollowUps.entityType = 'client' THEN Clients.phone
+          WHEN FollowUps.entityType = 'prospect' THEN Prospects.phone
+          WHEN FollowUps.entityType = 'phoneNumber' THEN PhoneNumbers.number
+        END as entityPhone,
+        CASE 
+          WHEN FollowUps.entityType = 'client' THEN Clients.company
+          WHEN FollowUps.entityType = 'prospect' THEN Prospects.company
+        END as entityCompany
+      FROM FollowUps
+      LEFT JOIN Clients ON FollowUps.entityId = Clients.id AND FollowUps.entityType = 'client'
+      LEFT JOIN Prospects ON FollowUps.entityId = Prospects.id AND FollowUps.entityType = 'prospect'
+      LEFT JOIN PhoneNumbers ON FollowUps.entityId = PhoneNumbers.id AND FollowUps.entityType = 'phoneNumber'
+      WHERE Clients.userId = ? OR Prospects.userId = ? OR PhoneNumbers.userId = ?
+      ORDER BY FollowUps.isCompleted ASC, FollowUps.date ASC`,
+      [userId, userId, userId]
+    )) as FollowUpWithDetails[];
+
+    return followUps.filter((f) => f.entityName);
+  } catch (error) {
+    console.error("Error fetching follow-ups with details:", error);
+    throw error;
+  }
+};
+
+export const getFollowUpsByEntity = async (
+  entityId: number,
+  entityType: FollowUpEntityType
+): Promise<FollowUp[]> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    const followUps = (await db.getAllAsync(
+      "SELECT * FROM FollowUps WHERE entityId = ? AND entityType = ? ORDER BY date DESC",
+      [entityId, entityType]
+    )) as FollowUp[];
+
+    return followUps;
+  } catch (error) {
+    console.error("Error fetching entity follow-ups:", error);
     throw error;
   }
 };
@@ -476,6 +540,50 @@ export const completeFollowUp = async (followUpId: number): Promise<void> => {
     ]);
   } catch (error) {
     console.error("Error completing follow-up:", error);
+    throw error;
+  }
+};
+
+export const updateFollowUp = async (
+  followUpId: number,
+  data: Partial<Pick<FollowUp, "date" | "notes">>
+): Promise<void> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    const updates: string[] = [];
+    const values: (string | number)[] = [];
+
+    if (data.date) {
+      updates.push("date = ?");
+      values.push(data.date);
+    }
+    if (data.notes) {
+      updates.push("notes = ?");
+      values.push(data.notes);
+    }
+
+    if (updates.length === 0) return;
+
+    values.push(followUpId);
+
+    await db.runAsync(
+      `UPDATE FollowUps SET ${updates.join(", ")} WHERE id = ?`,
+      values
+    );
+  } catch (error) {
+    console.error("Error updating follow-up:", error);
+    throw error;
+  }
+};
+
+export const deleteFollowUp = async (followUpId: number): Promise<void> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    await db.runAsync("DELETE FROM FollowUps WHERE id = ?", [followUpId]);
+  } catch (error) {
+    console.error("Error deleting follow-up:", error);
     throw error;
   }
 };
@@ -536,12 +644,15 @@ export const recordNewCall = async (
     };
 
     if (callData.logData.nextFollowUpDate) {
+      const createdAt = new Date().toISOString();
       await db.runAsync(
-        "INSERT INTO FollowUps (entityId, isClient, date, notes, isCompleted) VALUES (?, 0, ?, ?, 0)",
+        "INSERT INTO FollowUps (entityId, entityType, date, notes, isCompleted, createdAt) VALUES (?, ?, ?, ?, 0, ?)",
         [
           phoneNumber.id,
+          "phoneNumber",
           callData.logData.nextFollowUpDate,
           `Follow-up call for ${callData.number}`,
+          createdAt,
         ]
       );
     }
@@ -707,10 +818,116 @@ export const convertPhoneNumberToProspect = async (
       [newProspect.id, phoneNumberId]
     );
 
+    await db.runAsync(
+      "UPDATE FollowUps SET isCompleted = 1 WHERE entityId = ? AND entityType = ?",
+      [phoneNumberId, "phoneNumber"]
+    );
+
     console.log("Phone number converted to prospect:", newProspect);
     return newProspect;
   } catch (error) {
     console.error("Error converting phone number to prospect:", error);
+    throw error;
+  }
+};
+
+export const getAnalyticsData = async (
+  userId: number,
+  startDate?: string,
+  endDate?: string
+): Promise<AnalyticsData> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    const dateFilter =
+      startDate && endDate ? `AND Sales.date BETWEEN ? AND ?` : "";
+    const dateParams =
+      startDate && endDate ? [userId, startDate, endDate] : [userId];
+
+    const sales = (await db.getAllAsync(
+      `SELECT * FROM Sales 
+       INNER JOIN Clients ON Sales.clientId = Clients.id 
+       WHERE Clients.userId = ? ${dateFilter} 
+       ORDER BY Sales.date DESC`,
+      dateParams
+    )) as Sale[];
+
+    const clients = await getClients(userId);
+    const prospects = await getProspects(userId);
+    const callLogs = await getCallLogs(userId);
+    const followUps = await getFollowUps(userId);
+
+    const totalRevenue = sales.reduce((sum, sale) => sum + sale.amount, 0);
+    const averageSaleAmount =
+      sales.length > 0 ? totalRevenue / sales.length : 0;
+
+    const wonProspects = prospects.filter((p) => p.status === "Won").length;
+    const totalProspects = prospects.length;
+    const conversionRate =
+      totalProspects > 0 ? (wonProspects / totalProspects) * 100 : 0;
+
+    const productMap = new Map<string, { count: number; revenue: number }>();
+    sales.forEach((sale) => {
+      const existing = productMap.get(sale.productOrService) || {
+        count: 0,
+        revenue: 0,
+      };
+      productMap.set(sale.productOrService, {
+        count: existing.count + 1,
+        revenue: existing.revenue + sale.amount,
+      });
+    });
+    const topProducts = Array.from(productMap.entries())
+      .map(([product, data]) => ({ product, ...data }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 5);
+
+    const monthMap = new Map<string, { revenue: number; count: number }>();
+    sales.forEach((sale) => {
+      const month = new Date(sale.date).toISOString().slice(0, 7);
+      const existing = monthMap.get(month) || { revenue: 0, count: 0 };
+      monthMap.set(month, {
+        revenue: existing.revenue + sale.amount,
+        count: existing.count + 1,
+      });
+    });
+    const salesByMonth = Array.from(monthMap.entries())
+      .map(([month, data]) => ({ month, ...data }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+
+    const statusMap = new Map<string, number>();
+    prospects.forEach((prospect) => {
+      statusMap.set(prospect.status, (statusMap.get(prospect.status) || 0) + 1);
+    });
+    const prospectsByStatus = Array.from(statusMap.entries()).map(
+      ([status, count]) => ({ status, count })
+    );
+
+    const feedbackMap = new Map<string, number>();
+    callLogs.forEach((log) => {
+      feedbackMap.set(log.feedback, (feedbackMap.get(log.feedback) || 0) + 1);
+    });
+    const callsByFeedback = Array.from(feedbackMap.entries()).map(
+      ([feedback, count]) => ({ feedback, count })
+    );
+
+    return {
+      totalRevenue,
+      totalClients: clients.length,
+      totalProspects,
+      totalCalls: callLogs.length,
+      totalFollowUps: followUps.length,
+      completedFollowUps: followUps.filter((f) => f.isCompleted === 1).length,
+      pendingFollowUps: followUps.filter((f) => f.isCompleted === 0).length,
+      conversionRate,
+      averageSaleAmount,
+      topProducts,
+      salesByMonth,
+      prospectsByStatus,
+      callsByFeedback,
+    };
+  } catch (error) {
+    console.error("Error fetching analytics data:", error);
     throw error;
   }
 };

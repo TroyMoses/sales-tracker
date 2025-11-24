@@ -66,6 +66,18 @@ export default function MainLayout() {
           title: "Calls",
         }}
       />
+      <Stack.Screen
+        name="followups"
+        options={{
+          title: "Follow-ups",
+        }}
+      />
+      <Stack.Screen
+        name="analytics"
+        options={{
+          title: "Analytics",
+        }}
+      />
     </Stack>
   );
 }

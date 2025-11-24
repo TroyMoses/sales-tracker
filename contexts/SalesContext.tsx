@@ -14,6 +14,9 @@ import {
   PhoneNumber,
   CallLog,
   DailyCallStats,
+  FollowUpWithDetails,
+  AnalyticsData,
+  FollowUpEntityType,
 } from "../types";
 import { useAuth } from "./AuthContext";
 import * as db from "../services/database";
@@ -23,6 +26,7 @@ interface SalesContextType {
   prospects: Prospect[];
   sales: (Sale & { clientName: string })[];
   followUps: FollowUp[];
+  followUpsWithDetails: FollowUpWithDetails[];
   phoneNumbers: PhoneNumber[];
   callLogs: (CallLog & { number: string })[];
   isLoading: boolean;
@@ -37,8 +41,17 @@ interface SalesContextType {
     prospectId: number,
     saleData: Omit<Sale, "id" | "clientId">
   ) => Promise<void>;
-  addFollowUp: (followUp: Omit<FollowUp, "id">) => Promise<void>;
+  addFollowUp: (followUp: Omit<FollowUp, "id" | "createdAt">) => Promise<void>;
+  getFollowUpsByEntity: (
+    entityId: number,
+    entityType: FollowUpEntityType
+  ) => Promise<FollowUp[]>;
   completeFollowUp: (followUpId: number) => Promise<void>;
+  updateFollowUp: (
+    followUpId: number,
+    data: Partial<Pick<FollowUp, "date" | "notes">>
+  ) => Promise<void>;
+  deleteFollowUp: (followUpId: number) => Promise<void>;
   recordCall: (callData: {
     number: string;
     logData: Omit<CallLog, "id" | "phoneNumberId">;
@@ -49,6 +62,10 @@ interface SalesContextType {
   ) => Promise<void>;
   getDailyCallStats: (date: string) => Promise<DailyCallStats>;
   getPhoneNumberHistory: (phoneNumberId: number) => Promise<CallLog[]>;
+  getAnalyticsData: (
+    startDate?: string,
+    endDate?: string
+  ) => Promise<AnalyticsData>;
   refreshData: () => Promise<void>;
 }
 
@@ -68,6 +85,9 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [sales, setSales] = useState<(Sale & { clientName: string })[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+  const [followUpsWithDetails, setFollowUpsWithDetails] = useState<
+    FollowUpWithDetails[]
+  >([]);
   const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumber[]>([]);
   const [callLogs, setCallLogs] = useState<(CallLog & { number: string })[]>(
     []
@@ -84,6 +104,7 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
         prospectsData,
         salesData,
         followUpsData,
+        followUpsDetailsData,
         phoneNumbersData,
         callLogsData,
       ] = await Promise.all([
@@ -91,6 +112,7 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
         db.getProspects(user.id),
         db.getSales(user.id),
         db.getFollowUps(user.id),
+        db.getFollowUpsWithDetails(user.id),
         db.getPhoneNumbers(user.id),
         db.getCallLogs(user.id),
       ]);
@@ -99,6 +121,7 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
       setProspects(prospectsData);
       setSales(salesData);
       setFollowUps(followUpsData);
+      setFollowUpsWithDetails(followUpsDetailsData);
       setPhoneNumbers(phoneNumbersData);
       setCallLogs(callLogsData);
 
@@ -118,6 +141,7 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
       setProspects([]);
       setSales([]);
       setFollowUps([]);
+      setFollowUpsWithDetails([]);
       setPhoneNumbers([]);
       setCallLogs([]);
     }
@@ -197,10 +221,10 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const addFollowUp = async (followUp: Omit<FollowUp, "id">) => {
+  const addFollowUp = async (followUp: Omit<FollowUp, "id" | "createdAt">) => {
     try {
       const newFollowUp = await db.addFollowUp(followUp);
-      setFollowUps((prev) => [...prev, newFollowUp]);
+      await refreshData();
       console.log("Follow-up added:", newFollowUp);
     } catch (error) {
       console.error("Error adding follow-up:", error);
@@ -208,15 +232,50 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const getFollowUpsByEntity = async (
+    entityId: number,
+    entityType: FollowUpEntityType
+  ): Promise<FollowUp[]> => {
+    try {
+      return await db.getFollowUpsByEntity(entityId, entityType);
+    } catch (error) {
+      console.error("Error fetching entity follow-ups:", error);
+      throw error;
+    }
+  };
+
   const completeFollowUp = async (followUpId: number) => {
     try {
       await db.completeFollowUp(followUpId);
-      setFollowUps((prev) =>
-        prev.map((f) => (f.id === followUpId ? { ...f, isCompleted: 1 } : f))
-      );
+      await refreshData();
       console.log("Follow-up completed:", followUpId);
     } catch (error) {
       console.error("Error completing follow-up:", error);
+      throw error;
+    }
+  };
+
+  const updateFollowUp = async (
+    followUpId: number,
+    data: Partial<Pick<FollowUp, "date" | "notes">>
+  ) => {
+    try {
+      await db.updateFollowUp(followUpId, data);
+      await refreshData();
+      console.log("Follow-up updated:", followUpId);
+    } catch (error) {
+      console.error("Error updating follow-up:", error);
+      throw error;
+    }
+  };
+
+  const deleteFollowUp = async (followUpId: number) => {
+    try {
+      await db.deleteFollowUp(followUpId);
+      await refreshData();
+      console.log("Follow-up deleted:", followUpId);
+    } catch (error) {
+      console.error("Error deleting follow-up:", error);
       throw error;
     }
   };
@@ -276,6 +335,20 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const getAnalyticsData = async (
+    startDate?: string,
+    endDate?: string
+  ): Promise<AnalyticsData> => {
+    if (!user) throw new Error("User not authenticated");
+
+    try {
+      return await db.getAnalyticsData(user.id, startDate, endDate);
+    } catch (error) {
+      console.error("Error fetching analytics data:", error);
+      throw error;
+    }
+  };
+
   return (
     <SalesContext.Provider
       value={{
@@ -283,6 +356,7 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
         prospects,
         sales,
         followUps,
+        followUpsWithDetails,
         phoneNumbers,
         callLogs,
         isLoading,
@@ -292,11 +366,15 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
         addSale,
         convertProspectToClient,
         addFollowUp,
+        getFollowUpsByEntity,
         completeFollowUp,
+        updateFollowUp,
+        deleteFollowUp,
         recordCall,
         convertPhoneToProspect,
         getDailyCallStats,
         getPhoneNumberHistory,
+        getAnalyticsData,
         refreshData,
       }}
     >

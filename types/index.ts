@@ -34,13 +34,16 @@ export interface Sale {
   productOrService: string;
 }
 
+export type FollowUpEntityType = "client" | "prospect" | "phoneNumber";
+
 export interface FollowUp {
   id: number;
   entityId: number;
-  isClient: 0 | 1;
+  entityType: FollowUpEntityType;
   date: string;
   notes: string;
   isCompleted: 0 | 1;
+  createdAt: string;
 }
 
 export interface PhoneNumber {
@@ -69,4 +72,26 @@ export interface DailyCallStats {
   notAnswered: number;
   dnc: number;
   leads: number;
+}
+
+export interface FollowUpWithDetails extends FollowUp {
+  entityName: string;
+  entityPhone?: string;
+  entityCompany?: string;
+}
+
+export interface AnalyticsData {
+  totalRevenue: number;
+  totalClients: number;
+  totalProspects: number;
+  totalCalls: number;
+  totalFollowUps: number;
+  completedFollowUps: number;
+  pendingFollowUps: number;
+  conversionRate: number;
+  averageSaleAmount: number;
+  topProducts: { product: string; count: number; revenue: number }[];
+  salesByMonth: { month: string; revenue: number; count: number }[];
+  prospectsByStatus: { status: string; count: number }[];
+  callsByFeedback: { feedback: string; count: number }[];
 }
