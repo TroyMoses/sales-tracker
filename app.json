@@ -21,6 +21,7 @@
           "apple": {
             "security": {
               "application-groups": [
+                "group.com.myapp",
                 "group.com.myapp"
               ]
             }
@@ -35,6 +36,7 @@
       },
       "package": "app.rork.sales_tracker_app_f3wvn4n",
       "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
         "android.permission.POST_NOTIFICATIONS"
       ]
     },
@@ -78,6 +80,12 @@
       "eas": {
         "projectId": "40053ab1-da62-4a68-9abc-04245371bd6c"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/40053ab1-da62-4a68-9abc-04245371bd6c"
     }
   }
 }
