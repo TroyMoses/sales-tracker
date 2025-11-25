@@ -34,7 +34,7 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="signin" options={{ headerShown: false }} />
       <Stack.Screen name="signup" options={{ headerShown: false }} />
-      <Stack.Screen name="forgotPassword" options={{ headerShown: false }} />
+      <Stack.Screen name="forgotpassword" options={{ headerShown: false }} />
       <Stack.Screen name="(main)" options={{ headerShown: false }} />
     </Stack>
   );
