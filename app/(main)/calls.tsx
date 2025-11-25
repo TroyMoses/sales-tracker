@@ -26,6 +26,8 @@ import {
   Trash2,
 } from "lucide-react-native";
 import { confirmDelete } from "../../utils/confirmDelete";
+import { ExportButton } from "../../components/ExportButton";
+import { exportCallLogsToCSV } from "../../services/excelExportService";
 
 export default function CallsScreen() {
   const {
@@ -318,6 +320,15 @@ export default function CallsScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.headerBar}>
+        <Text style={styles.headerTitle}>Calls</Text>
+        <ExportButton
+          onExport={() => exportCallLogsToCSV(callLogs)}
+          filename="sales-tracker-calls"
+          label="Export"
+          buttonColor="#3b82f6"
+        />
+      </View>
       <ScrollView>
         <View style={styles.statsSection}>
           <Text style={styles.sectionTitle}>Today&apos;s Calls</Text>
@@ -626,6 +637,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#0f172a",
+  },
+  headerBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#1e293b",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#334155",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "700" as const,
+    color: "#fff",
   },
   statsSection: {
     padding: 20,

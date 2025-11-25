@@ -14,11 +14,28 @@ import {
 } from "react-native";
 import { useSales } from "../../contexts/SalesContext";
 import { Prospect } from "../../types";
-import { Target, Plus, X, Mail, Phone, TrendingUp, Edit, Trash2 } from "lucide-react-native";
+import {
+  Target,
+  Plus,
+  X,
+  Mail,
+  Phone,
+  TrendingUp,
+  Edit,
+  Trash2,
+} from "lucide-react-native";
 import { confirmDelete } from "../../utils/confirmDelete";
+import { ExportButton } from "../../components/ExportButton";
+import { exportProspectsToCSV } from "../../services/excelExportService";
 
 export default function ProspectsScreen() {
-  const { prospects, addProspect, updateProspect, deleteProspect, convertProspectToClient } = useSales();
+  const {
+    prospects,
+    addProspect,
+    updateProspect,
+    deleteProspect,
+    convertProspectToClient,
+  } = useSales();
   const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [convertModalVisible, setConvertModalVisible] =
     useState<boolean>(false);
@@ -254,6 +271,15 @@ export default function ProspectsScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.headerBar}>
+        <Text style={styles.headerTitle}>Prospects</Text>
+        <ExportButton
+          onExport={() => exportProspectsToCSV(prospects)}
+          filename="sales-tracker-prospects"
+          label="Export"
+          buttonColor="#f59e0b"
+        />
+      </View>
       <FlatList
         data={prospects}
         renderItem={renderProspect}
@@ -270,10 +296,7 @@ export default function ProspectsScreen() {
         }
       />
 
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => openAddModal()}
-      >
+      <TouchableOpacity style={styles.fab} onPress={() => openAddModal()}>
         <Plus size={28} color="#fff" strokeWidth={2.5} />
       </TouchableOpacity>
 
@@ -446,6 +469,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#0f172a",
+  },
+  headerBar: {
+    backgroundColor: "#1e293b",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#334155",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "700" as const,
+    color: "#fff",
   },
   list: {
     padding: 20,

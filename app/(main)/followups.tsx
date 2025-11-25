@@ -24,6 +24,8 @@ import {
   Trash2,
 } from "lucide-react-native";
 import { confirmDelete } from "../../utils/confirmDelete";
+import { ExportButton } from "../../components/ExportButton";
+import { exportFollowUpsToCSV } from "../../services/excelExportService";
 
 export default function FollowUpsScreen() {
   const {
@@ -40,7 +42,9 @@ export default function FollowUpsScreen() {
     "pending"
   );
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
-  const [editingFollowUpId, setEditingFollowUpId] = useState<number | null>(null);
+  const [editingFollowUpId, setEditingFollowUpId] = useState<number | null>(
+    null
+  );
   const [entityType, setEntityType] = useState<FollowUpEntityType>("client");
   const [selectedEntityId, setSelectedEntityId] = useState<number | null>(null);
   const [followUpDate, setFollowUpDate] = useState<string>("");
@@ -106,7 +110,7 @@ export default function FollowUpsScreen() {
       parseInt(dateParts[1]) - 1,
       parseInt(dateParts[2])
     );
-    
+
     if (isNaN(date.getTime())) {
       Alert.alert("Invalid Date", "Please enter a valid date");
       return false;
@@ -245,7 +249,7 @@ export default function FollowUpsScreen() {
     const day = String(now.getDate()).padStart(2, "0");
     const hours = String(now.getHours()).padStart(2, "0");
     const minutes = String(now.getMinutes()).padStart(2, "0");
-    
+
     setFollowUpDate(`${year}-${month}-${day}`);
     setFollowUpTime(`${hours}:${minutes}`);
     setShowAddModal(true);
@@ -383,6 +387,15 @@ export default function FollowUpsScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.headerBar}>
+        <Text style={styles.headerTitle}>Follow-ups</Text>
+        <ExportButton
+          onExport={() => exportFollowUpsToCSV(followUpsWithDetails)}
+          filename="sales-tracker-followups"
+          label="Export"
+          buttonColor="#3b82f6"
+        />
+      </View>
       <View style={styles.header}>
         <View style={styles.statsContainer}>
           <View style={styles.statBox}>
@@ -462,10 +475,7 @@ export default function FollowUpsScreen() {
         {activeTab === "completed" && completed.map(renderFollowUp)}
       </ScrollView>
 
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => openAddModal()}
-      >
+      <TouchableOpacity style={styles.fab} onPress={() => openAddModal()}>
         <Plus size={24} color="#fff" strokeWidth={2.5} />
       </TouchableOpacity>
 
@@ -646,7 +656,9 @@ export default function FollowUpsScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.addButton}
-                onPress={editingFollowUpId ? handleEditFollowUp : handleAddFollowUp}
+                onPress={
+                  editingFollowUpId ? handleEditFollowUp : handleAddFollowUp
+                }
               >
                 <Text style={styles.addButtonText}>
                   {editingFollowUpId ? "Update Follow-up" : "Add Follow-up"}
@@ -664,6 +676,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#0f172a",
+  },
+  headerBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#1e293b",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#334155",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "700" as const,
+    color: "#fff",
   },
   header: {
     backgroundColor: "#1e293b",

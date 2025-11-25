@@ -1165,3 +1165,42 @@ export const getAnalyticsData = async (
     throw error;
   }
 };
+
+// Add these functions to services/database.ts
+
+export const getUserByUsername = async (
+  username: string
+): Promise<User | null> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    const user = (await db.getFirstAsync(
+      "SELECT * FROM Users WHERE username = ?",
+      [username]
+    )) as User | null;
+
+    return user || null;
+  } catch (error) {
+    console.error("Error fetching user by username:", error);
+    throw error;
+  }
+};
+
+export const updateUserPassword = async (
+  userId: number,
+  passwordHash: string
+): Promise<void> => {
+  if (!db) throw new Error("Database not initialized");
+
+  try {
+    await db.runAsync("UPDATE Users SET passwordHash = ? WHERE id = ?", [
+      passwordHash,
+      userId,
+    ]);
+
+    console.log("User password updated:", userId);
+  } catch (error) {
+    console.error("Error updating user password:", error);
+    throw error;
+  }
+};

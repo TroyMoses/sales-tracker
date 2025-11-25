@@ -21,13 +21,18 @@ import {
   Package,
   BarChart3,
 } from "lucide-react-native";
+import { ExportButton } from "../../components/ExportButton";
+import {
+  exportSalesToCSV,
+  generateSalesReport,
+} from "../../services/excelExportService";
 
 const { width } = Dimensions.get("window");
 
 type DateFilter = "all" | "year" | "month" | "week" | "day";
 
 export default function AnalyticsScreen() {
-  const { getAnalyticsData } = useSales();
+  const { getAnalyticsData, sales } = useSales();
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(
     null
   );
@@ -212,6 +217,24 @@ export default function AnalyticsScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.headerBar}>
+        <Text style={styles.headerTitle}>Analytics</Text>
+        <View style={styles.exportButtons}>
+          <ExportButton
+            onExport={() => generateSalesReport(sales)}
+            filename="sales-tracker-report"
+            label="Report"
+            buttonColor="#10b981"
+          />
+          <View style={styles.exportButtonSpacer} />
+          <ExportButton
+            onExport={() => exportSalesToCSV(sales)}
+            filename="sales-tracker-analytics"
+            label="Export"
+            buttonColor="#3b82f6"
+          />
+        </View>
+      </View>
       <View style={styles.filterContainer}>
         <ScrollView
           horizontal
@@ -372,6 +395,29 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#0f172a",
+  },
+  headerBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#1e293b",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#334155",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "700" as const,
+    color: "#fff",
+  },
+  exportButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  exportButtonSpacer: {
+    width: 8,
   },
   loadingContainer: {
     flex: 1,

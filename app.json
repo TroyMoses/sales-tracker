@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Sales Tracker App",
+    "name": "YPA Sales Tracker",
     "slug": "sales-tracker-app-f3wvn4n",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -20,7 +20,9 @@
         "com": {
           "apple": {
             "security": {
-              "application-groups": ["group.com.myapp"]
+              "application-groups": [
+                "group.com.myapp"
+              ]
             }
           }
         }
@@ -32,7 +34,9 @@
         "backgroundColor": "#ffffff"
       },
       "package": "app.rork.sales_tracker_app_f3wvn4n",
-      "permissions": ["android.permission.POST_NOTIFICATIONS"]
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS"
+      ]
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
@@ -66,6 +70,14 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": "https://rork.com/"
+      },
+      "eas": {
+        "projectId": "40053ab1-da62-4a68-9abc-04245371bd6c"
+      }
     }
   }
 }

@@ -16,6 +16,8 @@ import { useSales } from "../../contexts/SalesContext";
 import { Sale } from "../../types";
 import { DollarSign, Plus, X, Edit, Trash2 } from "lucide-react-native";
 import { confirmDelete } from "../../utils/confirmDelete";
+import { ExportButton } from "../../components/ExportButton";
+import { exportSalesToCSV } from "../../services/excelExportService";
 
 export default function SalesScreen() {
   const { sales, clients, addSale, updateSale, deleteSale } = useSales();
@@ -172,6 +174,15 @@ export default function SalesScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.headerBar}>
+        <Text style={styles.headerTitle}>Sales</Text>
+        <ExportButton
+          onExport={() => exportSalesToCSV(sales)}
+          filename="sales-tracker-sales"
+          label="Export"
+          buttonColor="#10b981"
+        />
+      </View>
       <FlatList
         data={sales}
         renderItem={renderSale}
@@ -188,10 +199,7 @@ export default function SalesScreen() {
         }
       />
 
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => openAddModal()}
-      >
+      <TouchableOpacity style={styles.fab} onPress={() => openAddModal()}>
         <Plus size={28} color="#fff" strokeWidth={2.5} />
       </TouchableOpacity>
 
@@ -299,6 +307,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#0f172a",
+  },
+  headerBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#1e293b",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#334155",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "700" as const,
+    color: "#fff",
   },
   list: {
     padding: 20,

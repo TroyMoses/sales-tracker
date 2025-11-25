@@ -14,8 +14,19 @@ import {
 } from "react-native";
 import { useSales } from "../../contexts/SalesContext";
 import { Client } from "../../types";
-import { Users, Plus, X, Mail, Phone, Briefcase, Edit, Trash2 } from "lucide-react-native";
+import {
+  Users,
+  Plus,
+  X,
+  Mail,
+  Phone,
+  Briefcase,
+  Edit,
+  Trash2,
+} from "lucide-react-native";
 import { confirmDelete } from "../../utils/confirmDelete";
+import { ExportButton } from "../../components/ExportButton";
+import { exportClientsToCSV } from "../../services/excelExportService";
 
 export default function ClientsScreen() {
   const { clients, addClient, updateClient, deleteClient } = useSales();
@@ -161,6 +172,15 @@ export default function ClientsScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.headerBar}>
+        <Text style={styles.headerTitle}>Clients</Text>
+        <ExportButton
+          onExport={() => exportClientsToCSV(clients)}
+          filename="sales-tracker-clients"
+          label="Export"
+          buttonColor="#3b82f6"
+        />
+      </View>
       <FlatList
         data={clients}
         renderItem={renderClient}
@@ -177,10 +197,7 @@ export default function ClientsScreen() {
         }
       />
 
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => openAddModal()}
-      >
+      <TouchableOpacity style={styles.fab} onPress={() => openAddModal()}>
         <Plus size={28} color="#fff" strokeWidth={2.5} />
       </TouchableOpacity>
 
@@ -293,6 +310,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#0f172a",
+  },
+  headerBar: {
+    backgroundColor: "#1e293b",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#334155",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "700" as const,
+    color: "#fff",
   },
   list: {
     padding: 20,
